@@ -188,18 +188,32 @@ export function mountDropZone(deps: DropZoneDeps): View {
   let thumbFor: string | null = null;
 
   // See note 1 in the module header. Capture phase so it runs before anything
-  // else can accept the drag, and on `window` so it covers the whole app.
+  // else can accept the drag, and on `window` so it covers the whole app. This
+  // is the navigate-to-file defence and stays exactly as it was — it must fire
+  // for a drop on ANY pixel of the window, not just the hero.
   const swallow = (event: DragEvent): void => event.preventDefault();
   window.addEventListener('dragover', swallow, { capture: true });
   window.addEventListener('drop', swallow, { capture: true });
 
-  zone.addEventListener('dragenter', (event) => {
+  // Drag affordance AND drop handling are bound to `window`, not to `#file-zone`.
+  // The Home UI says "Drop a video anywhere in this window," and section B of the
+  // element contract defines `.is-dragging` as "a drag … over THE WINDOW" — so a
+  // drop on a recent-file card, the sidebar, or any gap must work, not just one on
+  // the hero. The accent still LIVES on #file-zone (its visual home per the
+  // contract: border + tint + overlay), so the class is toggled on `zone` while
+  // the events that drive it are observed window-wide. There is exactly ONE `drop`
+  // handler that calls `actions.loadPath` — the hero no longer has its own, so a
+  // drop on the hero loads once, not twice.
+  //
+  // The drag counter's depth approach still applies at window level: dragenter /
+  // dragleave fire once per nested child the pointer crosses the window over too.
+  window.addEventListener('dragenter', (event) => {
     if (!dragCarriesFiles(event.dataTransfer?.types)) return;
     event.preventDefault();
     zone.classList.toggle('is-dragging', counter.enter());
   });
 
-  zone.addEventListener('dragover', (event) => {
+  window.addEventListener('dragover', (event) => {
     if (!dragCarriesFiles(event.dataTransfer?.types)) return;
     // Required on EVERY dragover, not just the first: without it the drop event
     // never fires at all.
@@ -207,11 +221,22 @@ export function mountDropZone(deps: DropZoneDeps): View {
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
   });
 
-  zone.addEventListener('dragleave', () => {
+  window.addEventListener('dragleave', () => {
     zone.classList.toggle('is-dragging', counter.leave());
   });
 
-  zone.addEventListener('drop', (event) => {
+  window.addEventListener('drop', (event) => {
+    // Gate the bubble handler the same way `dragenter`/`dragover` are gated. Now
+    // that drop is window-wide, a non-file drag (a text selection, a dragged
+    // image) still fires `drop` here — the capture-phase `swallow` prevented its
+    // default, so the browser delivers it — and without this it would run
+    // `selectDropPath([])` and toast "Nothing was dropped". Finder drops of
+    // folders / PDFs / unsupported files DO carry 'Files', so they pass this gate
+    // and keep their specific error toasts; only genuine non-file drags are
+    // dropped. The capture-phase `swallow` above stays unconditional regardless —
+    // it is the navigate-to-file defence for every pixel.
+    if (!dragCarriesFiles(event.dataTransfer?.types)) return;
+
     event.preventDefault();
     zone.classList.toggle('is-dragging', counter.reset());
 
