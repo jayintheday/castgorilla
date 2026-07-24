@@ -1,0 +1,123 @@
+# electron-builder — macOS packaging for Cast Gorilla.
+# Build the app bundle first (`npm run build`), then:
+#   npx electron-builder --dir     # unpacked .app (CI-friendly, no DMG tooling)
+#   npx electron-builder           # dir + DMG
+#
+# appId is DELIBERATELY unchanged. It is the macOS bundle identity: changing it
+# resets the local-network TCC grant (the app re-prompts, and the old grant in
+# Privacy & Security points at a bundle that no longer exists) and orphans the
+# Electron user-data directory. We paid that once on the sickstream → castgorilla
+# rename; the productName change below costs nothing because the *identity* is
+# the appId, not the display name.
+appId: co.castgorilla.app
+productName: Cast Gorilla
+# Official DMGs are sold on Gumroad only (docs/DISTRIBUTION.md). Never publish
+# binaries to GitHub Releases. `null` blocks accidental `electron-builder
+# --publish` / token-driven uploads even if GH_TOKEN is in the environment.
+publish: null
+directories:
+  output: release
+  buildResources: build
+# Ship the built output + package.json. Production dependencies (the real
+# @castgorilla/engine and its transitive runtime deps — castv2, bonjour-service,
+# zod, protobufjs, …) are collected automatically by electron-builder from the
+# dependency tree and packed into the asar; source + dev deps stay out.
+files:
+  - dist/**
+  - package.json
+# Bundled ffmpeg/ffprobe → Contents/Resources/ffmpeg/. A packaged app launched
+# from Finder gets a minimal PATH with no /opt/homebrew/bin, so it cannot find a
+# Homebrew ffmpeg even when one is installed — and a user's machine may have none
+# at all. `src/main/ffmpeg-paths.ts` points the engine here via
+# CASTGORILLA_FFMPEG/CASTGORILLA_FFPROBE. Paths are relative to this file's
+# directory (packages/app), hence ../../.
+#
+# The whole directory is copied, deliberately UNFILTERED: these are LGPL builds
+# and any COPYING/LICENSE text the vendoring step places next to the binaries
+# must ship with them. Narrowing this to just `ffmpeg` and `ffprobe` would
+# silently drop that.
+#
+# CAUTION: `vendor/` is gitignored — the binaries are built locally by
+# `scripts/build-ffmpeg.sh`, not committed. If they are absent, electron-builder
+# does NOT fail: it logs `file source doesn't exist` at WARN and packages an app
+# with no ffmpeg in Resources (fileMatcher.js copyFiles). Build the binaries
+# first, and grep the packaging log for that string.
+extraResources:
+  - from: ../../vendor/ffmpeg/arm64
+    to: ffmpeg
+asar: true
+# castv2 loads its Protobuf schema at runtime with
+#   protobuf.load(__dirname + "/cast_channel.proto")
+# (see node_modules/castv2/lib/proto.js). Inside an asar, __dirname points at a
+# virtual path and protobufjs's own fs read of the .proto is unreliable, so cast
+# connections can silently fail to build their CastMessage type. Unpacking castv2
+# to app.asar.unpacked/ gives __dirname a real on-disk path and the .proto loads
+# normally. This is the documented electron-builder remedy for file-path asset
+# loads inside node modules.
+asarUnpack:
+  - "**/node_modules/castv2/**"
+mac:
+  # `dir` produces the raw .app; `dmg` the disk image. --dir builds only the
+  # former. arm64 is pinned explicitly: the bundled ffmpeg is an arm64-only
+  # static build (vendor/ffmpeg/arm64), so an x64 or universal artifact would
+  # ship a binary that cannot run.
+  target:
+    - target: dir
+      arch:
+        - arm64
+    - target: dmg
+      arch:
+        - arm64
+  category: public.app-category.video
+  icon: build/icon.icns
+  # Signed with a real Developer ID (was `identity: null`, i.e. ad-hoc/unsigned).
+  #
+  # DO NOT PREFIX THIS WITH "Developer ID Application:". electron-builder rejects
+  # it outright — `checkPrefix()` in app-builder-lib/out/codeSign/macCodeSign.js
+  # throws InvalidConfigurationError if the value starts with any of the four
+  # `appleCertificatePrefixes`, because it derives the certificate TYPE itself
+  # from what the target needs. The prefixed form fails the build with:
+  #   ⨯ Please remove prefix "Developer ID Application:" from the specified name
+  #
+  # What this string actually is: a SUBSTRING QUALIFIER. `_findIdentity()` lists
+  # `security find-identity -v -p codesigning`, keeps the lines containing this
+  # value, and returns the first that ALSO contains "Developer ID Application:".
+  # The team ID is retained deliberately: it is what makes the match unambiguous.
+  # A bare "Intheday Ltd" resolves correctly today, but would silently select
+  # another team's certificate if one were ever added to this keychain.
+  # (The two duplicate keychain entries for this cert are a non-issue — they
+  # share a SHA-1, so they dedupe to a single line via `new Set`. Verified: this
+  # qualifier matches exactly one candidate.)
+  identity: "Intheday Ltd (29UYFH4USR)"
+  # Already the electron-builder 26 default, but stated explicitly because it is
+  # a hard precondition for notarization — and because the entitlements below
+  # only make sense as exceptions TO it.
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Sign the bundled ffmpeg/ffprobe with the same Developer ID. Load-bearing, not
+  # belt-and-braces: an unsigned nested Mach-O binary fails notarization outright.
+  # Relative paths here resolve against the .app bundle root, so they must start
+  # with `Contents/` (app-builder-lib MacTargetHelper.buildSignOptions).
+  binaries:
+    - Contents/Resources/ffmpeg/ffmpeg
+    - Contents/Resources/ffmpeg/ffprobe
+  # Notarization runs at build time via @electron/notarize (notarytool) and takes
+  # its credentials from the ENVIRONMENT — never from this file. Set ONE of, in
+  # the order electron-builder checks them:
+  #   1. APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID
+  #   2. APPLE_API_KEY + APPLE_API_KEY_ID + APPLE_API_ISSUER   (App Store Connect)
+  #   3. APPLE_KEYCHAIN_PROFILE  (+ optional APPLE_KEYCHAIN) — a profile stored by
+  #      `xcrun notarytool store-credentials`; the tidiest local option.
+  # CAUTION: with none of them set, electron-builder does NOT fail. It logs
+  # `skipped macOS notarization` at warn level and produces an un-notarized
+  # bundle that installs fine here and is refused by Gatekeeper on a clean Mac.
+  # Check the build log for that line before shipping.
+  notarize: true
+  # Local-network discovery permission strings (macOS Sequoia+ TCC) and the
+  # Bonjour service Chromecast discovery browses for.
+  extendInfo:
+    NSLocalNetworkUsageDescription: >-
+      Cast Gorilla discovers and streams to Chromecast devices on your local network.
+    NSBonjourServices:
+      - _googlecast._tcp

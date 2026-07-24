@@ -1,0 +1,673 @@
+/**
+ * base.css — element defaults, the page skeleton, and the two notification
+ * systems that were already load-bearing (banners and toasts).
+ *
+ * "Warm-native" redesign: the window is now a two-pane app (a fixed 250px
+ * sidebar + a flexible main) that swaps wholesale to a full-bleed casting view
+ * while a session is live. This file owns the OUTERMOST skeleton — the reset,
+ * the type/control defaults, the focus ring, the `hiddenInset` drag rules, the
+ * top bar, the `.shell` two-pane frame, and the shell↔casting swap — plus the
+ * banner and toast systems. Everything that lives INSIDE the sidebar and main,
+ * and the whole casting view's interior, is components.css.
+ *
+ * Every colour, length, duration, radius, shadow and font resolves to a token
+ * from tokens.css. A raw literal here is a bug (the two exceptions are the
+ * inline `<select>` chevron data-URI, which cannot reference a custom property,
+ * and a couple of geometric line-heights, both commented at their rule).
+ */
+
+/* ---------------------------------------------------------------- reset ---- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  background: var(--surface-0);
+  color: var(--text);
+
+  /* This is an app window, not a document: a stray text selection while
+     dragging a slider looks broken. Selection is re-enabled below on the few
+     runs of text a user has a real reason to copy. */
+  -webkit-user-select: none;
+  user-select: none;
+
+  /* The window itself never scrolls — the sidebar and the main column each
+     manage their own overflow, and the casting view is full-bleed. A body
+     scrollbar here would mean a layout leak, so clamp it and make leaks
+     visible in testing rather than silently scrollable. */
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+/* Runs of text worth copying. Kept to a short, explicit list rather than
+   flipping the default, so dragging anywhere else still feels like chrome. */
+#file-name,
+#file-meta,
+#plan-summary,
+#reasons-list,
+#casting-title,
+#casting-subtitle,
+#status-line,
+.banner-item,
+.toast {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: auto;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+figure {
+  margin: 0;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+img {
+  max-width: 100%;
+}
+
+/* ------------------------------------------------------------ app region ---
+   `titleBarStyle: 'hiddenInset'` means the window has no system title bar and
+   we supply the drag handle ourselves. Two consequences, both of which look
+   like bugs if you meet them without warning:
+
+   1. Anything inside a `drag` region is NOT clickable — the OS eats the press
+      to move the window. Every interactive descendant therefore needs an
+      explicit `no-drag`.
+   2. The traffic lights are drawn by the system on top of our content, so the
+      top bar's left padding (`--traffic-light-inset`) is not decoration; remove
+      it and the app title renders underneath the close button. We draw NO fake
+      traffic-light dots — the real ones sit in that inset.                    */
+
+.topbar {
+  -webkit-app-region: drag;
+}
+
+button,
+select,
+input,
+a,
+summary,
+[role='button'],
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ------------------------------------------------------------- controls ---- */
+
+button,
+select,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  margin: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  cursor: default;
+}
+
+/* Disabled must not rely on colour alone (a dimmed coral button is still
+   coral). Reduced opacity plus the cursor change gives two independent
+   signals; components add a third (shadow removed on the primary buttons). */
+:disabled {
+  opacity: 0.38;
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) var(--space-6) var(--space-2) var(--space-3);
+  color: var(--text);
+  width: 100%;
+  min-width: 0; /* lets a select shrink inside a flex row instead of overflowing */
+  text-overflow: ellipsis;
+
+  /* The chevron. An inline SVG data URI rather than a sprite `<use>` because a
+     `<select>` cannot contain markup. CSP-safe (`img-src 'self' data:`). The
+     stroke colour is `--text-faint` (#6E675C) hardcoded because a data URI
+     cannot read a custom property — keep it in step with that token by hand. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E675C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-2) center;
+  background-size: 15px 15px;
+
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+select:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background-color: var(--surface-3);
+}
+
+/* The popup list is rendered by the OS and inherits almost nothing; setting the
+   option colours explicitly stops a white-on-white menu. */
+select option {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  display: grid;
+  place-content: center;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+input[type='checkbox']::after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid var(--text-on-accent);
+  border-bottom: 2px solid var(--text-on-accent);
+  transform: rotate(-45deg) translate(1px, -1px);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+input[type='checkbox']:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type='checkbox']:checked::after {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------- focus ---- */
+
+/* The app is a remote control: every action is one someone may want to reach
+   from the keyboard while looking at the TV. `:focus-visible` (not `:focus`) so
+   a mouse click does not leave a ring. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* The range inputs draw their own ring on the thumb (components.css); a second
+   ring around the whole rail on top of that is noise. */
+input[type='range']:focus-visible {
+  outline: none;
+}
+
+/* ----------------------------------------------------------- primitives ---- */
+
+/* Every icon is a `<use>` of a sprite symbol. `currentColor` is why the sprite
+   has no colours of its own: an icon takes the colour of whatever it sits in,
+   so a disabled button's icon dims with the button and an active CC button's
+   icon lights with it, for free. */
+.icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: block;
+  fill: currentColor;
+  pointer-events: none; /* clicks land on the button, never the glyph */
+}
+
+.icon--sm {
+  width: 16px;
+  height: 16px;
+}
+
+.icon--lg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Accessible-but-invisible (the volume percentage for screen readers). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Indeterminate progress. ffprobe on a 7.9 GB MKV takes long enough to notice,
+   so the empty/loaded faces both surface it (components.css toggles where). */
+.spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  animation: spin 720ms linear infinite;
+}
+
+.spinner--lg {
+  width: 28px;
+  height: 28px;
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------- top bar ----- */
+
+.topbar {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  height: var(--titlebar-h);
+  /* Left padding clears the macOS traffic lights; see --traffic-light-inset. */
+  padding: 0 var(--space-5) 0 var(--traffic-light-inset);
+  background: var(--surface-chrome);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+/* The breadcrumb stepper, absolutely centred on the window (replacing the old
+   .topbar__title). Absolute + translateX(-50%) keeps the hit area TIGHT around
+   its own content — unlike a left:0/right:0 label, it never overlaps the tray
+   toggle (left) or the mode badge (right), whose clicks must land. At every
+   window width we support the ~220px stepper clears both the traffic lights and
+   the badge. It is out of flow, so the topbar's flex still pins the toggle left
+   and the badge right around it. */
+.nav {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* A step. Reachable-but-not-current reads as muted chrome text that brightens on
+   hover; the current step is coral (via aria-current); an unreachable step is
+   dimmed and inert (via :disabled). Colour is the whole signal, so the box stays
+   quiet. */
+.nav__step {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition:
+    color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+/* Reachable and not the current page: clickable, lifts on hover. */
+.nav__step:not(:disabled):not([aria-current='page']):hover {
+  color: var(--text);
+  background: var(--wash-hover);
+}
+
+/* The page currently shown — the one coral element in the strip. */
+.nav__step[aria-current='page'] {
+  color: var(--accent);
+  font-weight: var(--fw-semibold);
+}
+
+/* Not yet reachable (no clip / no active session): dimmed, no pointer. */
+.nav__step:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+/* The decorative separators. Not `.icon` (that would fill the open chevron
+   path); a bare sized <svg> keeps the symbol's own stroke, matching the
+   disclosure chevrons. Faint so the steps carry the eye, not the glyphs. */
+.nav__chevron {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+/* The mode badge parks at the right edge. With the tray toggle and the .nav
+   stepper both out of flow (absolutely positioned), the badge is effectively the
+   only in-flow topbar child, and `margin-left: auto` still pushes it hard right.
+   The absolutely-centred title floats between the toggle and the badge. */
+#mode-badge {
+  margin-left: auto;
+}
+
+/* The device-tray toggle. A ghost icon button that reads as chrome: no border
+   at rest, muted glyph, a soft cream wash on hover. It is absolutely centred on
+   the sidebar column (left: --sidebar-w / 2, same translate trick as .nav) so it
+   sits over the middle of the panel it controls. At 250px sidebar / 2 = 125px
+   with a 28px button its left edge lands at ~111px — well clear of the real
+   macOS traffic lights in the --traffic-light-inset (78px). Out of flow, so it
+   no longer participates in the topbar's flex: the badge's margin-left:auto and
+   the absolutely-centred .nav are unaffected. It inherits no-drag from the base
+   `button` rule, so it stays clickable. */
+.tray-toggle {
+  position: absolute;
+  left: calc(var(--sidebar-w) / 2);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.tray-toggle:hover {
+  background: var(--wash-hover);
+  color: var(--text);
+}
+
+/* Subtly lit while the tray is open, dimmer while collapsed — a second signal
+   beyond aria-expanded that the panel is showing. */
+.tray-toggle[aria-expanded='true'] {
+  color: var(--text-dim);
+}
+
+/* Casting dims the chrome a shade, per the design's darker now-casting window. */
+body.is-casting .topbar {
+  background: var(--surface-chrome-casting);
+}
+
+/* The tray it controls is gone only on the Playing page (where #shell is
+   hidden); on Home/Clip the shell — and this toggle — are visible even while a
+   cast is live, so key the hide on the PAGE, not on `.is-casting`. */
+body[data-page='playing'] .tray-toggle {
+  display: none;
+}
+
+/* --------------------------------------------------------------- shell ----
+   The two-pane frame: a fixed sidebar + a flexible main. This is the Empty AND
+   File-loaded UI; the casting view (components.css) replaces it wholesale while
+   a session is live. Kept in base as the page skeleton — the pieces INSIDE
+   each pane are components.                                                   */
+
+.shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  background: var(--surface-0);
+}
+
+.sidebar {
+  flex: 0 0 var(--sidebar-w);
+  width: var(--sidebar-w);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-5) var(--space-3);
+  background: var(--surface-sidebar);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+
+  /* Collapse animation (see body.tray-collapsed below). `.main` is flex:1 1 auto
+     and needs no transition of its own — it grows to fill each frame as this
+     column's width animates. `visibility` is in the list on purpose: a
+     visible→hidden visibility transition keeps the sidebar VISIBLE for the whole
+     slide-out and flips to hidden only at the end, and visible IMMEDIATELY on
+     expand — so the contents stay on screen while sliding yet leave the tab order
+     the instant the panel is closed. All of these are zeroed by the blanket
+     prefers-reduced-motion rule, so a reduced-motion user just gets the snap. */
+  transition:
+    flex-basis var(--dur-med) var(--ease),
+    width var(--dur-med) var(--ease),
+    padding var(--dur-med) var(--ease),
+    border-right-width var(--dur-med) var(--ease),
+    transform var(--dur-med) var(--ease),
+    visibility var(--dur-med) var(--ease);
+}
+
+/* Collapsed: slide LEFT off-screen and shrink to zero width, dropping the
+   padding and the right border so `.main` gets the full column. `visibility:
+   hidden` (transitioned above) removes the collapsed sidebar's contents from the
+   tab order and the a11y tree, so keyboard focus can never land in it. */
+body.tray-collapsed .sidebar {
+  flex-basis: 0;
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-width: 0;
+  transform: translateX(-100%);
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-7) var(--space-7) var(--space-6);
+  overflow-y: auto;
+}
+
+/* ---------------------------------------------------------------- badges --- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* `display: inline-flex` above beats the UA `[hidden] { display: none }`, so
+   without this a badge could never be hidden by the `hidden` property. */
+.badge[hidden] {
+  display: none;
+}
+
+.badge--mock {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  color: var(--warn);
+}
+
+/* Outcome tints for status pills (the HDR badge; any future status badge). The
+   renderer can opt a badge into one of these with a modifier class; #hdr-badge
+   also carries the "preserved" green by default in components.css. */
+.badge--ok {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--ok-strong) 40%, transparent);
+  color: var(--ok-strong);
+}
+
+.badge--warn {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  color: var(--warn);
+}
+
+.badge--danger {
+  background: color-mix(in srgb, var(--error) 16%, transparent);
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+  color: var(--error);
+}
+
+/* --------------------------------------------------------------- banners ---
+   Keyed, persistent status banners (ffmpeg missing, plan refusal, mock-engine
+   fallback). The JS is NOT rewritten: it creates a
+   `div.banner-item.banner-item--{warn,error}` carrying `data-key`, appends it
+   to `#banner`, and toggles `#banner[hidden]` on empty. Restyled only. Sits
+   full width between the top bar and the shell.                              */
+
+.banner {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6) 0;
+}
+
+.banner[hidden] {
+  display: none;
+}
+
+.banner-item {
+  border: 1px solid var(--warn);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  background: var(--warn-soft);
+  color: var(--text);
+  white-space: pre-wrap;
+  box-shadow: var(--shadow-1);
+}
+
+/* The severity modifiers colour the rule and the tint, not the body text: an
+   error is usually a paragraph of engine prose, and red body text at 13px is
+   measurably harder to read than cream. */
+.banner-item--warn {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.banner-item--error {
+  border-color: var(--error);
+  background: var(--error-soft);
+}
+
+/* ---------------------------------------------------------------- toasts ---
+   Transient, self-removing after 6s (see `toast()` in main.ts). Anchored to
+   the window's bottom-right. The casting view is full-bleed, so there is no
+   longer a player bar to clear — a plain inset is all this needs.            */
+
+.toasts {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 360px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text);
+  font-size: var(--fs-base);
+  box-shadow: var(--shadow-2);
+  pointer-events: auto;
+  animation: toast-in var(--dur-slow) var(--ease-out);
+}
+
+.toast--error {
+  border-left-color: var(--error);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ------------------------------------------------------ reduced motion -----
+   One blanket switch rather than per-component opt-outs. Everything animated in
+   this app is feedback about a state change, never information in its own
+   right, so removing the animation entirely (rather than shortening it) loses
+   the user nothing — the end state is identical.
+
+   `!important` is deliberate and is the one place it is used: this has to beat
+   any component rule regardless of specificity, including ones added later.   */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* The spinner is the exception that proves the rule: it is not decoration, it
+     is the only evidence that a long probe is still running. Slow it right down
+     instead of freezing it. */
+  .spinner {
+    animation-duration: 2.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* Same argument for the activity bar and the two live pulses (device search,
+     casting dot): a motionless indeterminate indicator is no indicator at all.
+     Slow, don't kill. The bar is aria-hidden, so a reduced-motion user still
+     gets the spoken status from #status-line. */
+  .activity::before,
+  .casting__dot,
+  #device-field[data-state='searching'] .field__hint::before {
+    animation-duration: 3.2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

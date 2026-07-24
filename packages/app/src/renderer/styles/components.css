@@ -1,0 +1,1560 @@
+/**
+ * components.css — the named pieces of the window, warm-native redesign.
+ *
+ * base.css owns the outer skeleton (top bar, the `.shell` two-pane frame, the
+ * sidebar/main boxes). This file styles what lives INSIDE those panes and the
+ * whole casting view. Reading order follows the app:
+ *
+ *   1. shared primitives — buttons, fields, section labels
+ *   2. sidebar interior  — wordmark, PLAY TO, device list, footer
+ *   3. main · empty face — file-zone hero, mascot, recents
+ *   4. main · loaded face — file card, launch, tracks, advanced, plan chip
+ *   5. activity bar
+ *   6. casting view — backdrop, status, title, transport, scrubber, popover
+ *   7. responsive
+ *
+ * State classes are toggled by the renderer, never by CSS alone; each is
+ * documented at its rule and, authoritatively, in the ELEMENT CONTRACT comment
+ * at the top of index.html. Every value resolves to a tokens.css custom
+ * property (the two hand-computed slider geometries are commented).
+ */
+
+/* ============================================ 1 · SHARED PRIMITIVES ========= */
+
+/* ---- buttons ---- */
+
+/* The neutral surface button base. `.btn--accent` is the one coral CTA
+   ("Choose a file…"); there is no un-accented `.btn` in the markup, but the
+   base is kept so a future secondary button inherits the same geometry. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn--accent {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--text-on-accent);
+  box-shadow: var(--shadow-1), var(--ring-inset);
+}
+
+.btn--accent:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: transparent;
+}
+
+.btn--accent:active:not(:disabled) {
+  background: var(--accent-active);
+  transform: translateY(1px);
+}
+
+.btn--accent:disabled {
+  box-shadow: none;
+}
+
+/* A small square icon-only button (the file card's clear control). */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-muted);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+/* A text-only affordance (sidebar Refresh, recents Clear). Reads as a quiet
+   link, lights on hover. May carry a leading `.icon--sm`. */
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.link-btn:hover {
+  color: var(--text-dim);
+}
+
+/* Refresh in flight: spin the glyph so pressing the button visibly does
+   something even when the rescan resolves instantly. `@keyframes spin` is the
+   same one the probe .spinner uses (base.css). Under prefers-reduced-motion the
+   global reset freezes this animation (it is NOT in the .spinner "slow, don't
+   kill" exception) — deliberately, because the "Searching…" count still conveys
+   the state without motion. */
+#device-refresh.is-refreshing .icon {
+  animation: spin 720ms linear infinite;
+}
+
+/* ---- fields ---- */
+
+/* `.field` is a plain wrapper (the sidebar #device-field just stacks its list
+   and hint). The two modifiers do the real layout work. */
+.field {
+  display: block;
+}
+
+.field__label {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.field__control {
+  min-width: 0;
+}
+
+/* Audio/subtitles: label OVER control, so a track name like
+   `EAC3 5.1 eng "Surround"` is not crushed into a half-width column. */
+.field--stacked {
+  display: block;
+}
+
+.field--stacked .field__label {
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+/* HDR policy: label BESIDE a compact control, sitting inline in the options
+   row. The select drops its default full width and takes only what it needs,
+   wrapping under the checkbox when the column is narrow. */
+.field--inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.field--inline .field__label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.field--inline select {
+  width: auto;
+  min-width: 220px;
+}
+
+/* ---- section labels ---- */
+
+/* The uppercase micro-labels: "AUDIO & SUBTITLES", "PICK UP WHERE YOU LEFT
+   OFF". Same voice as PLAY TO / ADVANCED, but those get their own rules. */
+.section-label {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* ================================================ 2 · SIDEBAR INTERIOR ====== */
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2) 0;
+}
+
+/* Just the transparent mascot PNG — no tile, no border, no rounded box, matching
+   the deboxed hero mascot (.file-zone__mascot). Size holds the sidebar rhythm;
+   `contain` shows the whole PNG without a box to crop against. */
+.wordmark__mark {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.wordmark__text {
+  min-width: 0;
+}
+
+.wordmark__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+
+.wordmark__meta {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.sidebar__label {
+  margin: var(--space-6) var(--space-2) var(--space-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* ---- device list (the picker) ---- */
+
+.device-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* A row = status dot + name + type sub-label. Roving-tabindex option; the
+   selected one lights a 3px left bar + soft tint (see below). */
+.device-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.device-row:hover:not([aria-selected='true']) {
+  background: var(--wash-hover);
+}
+
+/* THE selected-device signal: coral left bar + coral-soft tint + coral dot +
+   brighter name. Exactly one row carries aria-selected at a time. */
+.device-row[aria-selected='true'] {
+  background: var(--accent-soft);
+}
+
+.device-row[aria-selected='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+.device-row__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  /* Green means "reachable" for EVERY listed device, including the selected one.
+     Every discovered device is reachable, so the dot is not a health signal that
+     varies row to row — recolouring the selected row's dot coral read as
+     "red = offline" on a powered-on device. Selection is carried entirely by the
+     3px accent bar + tint + bold name (above); the dot stays green throughout. */
+  background: var(--ok);
+}
+
+.device-row__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.device-row__name {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-row[aria-selected='true'] .device-row__name {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.device-row__type {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-row[aria-selected='true'] .device-row__type {
+  color: var(--text-muted);
+}
+
+/* Hint line under the list. Which of the three device states we are in is
+   carried by `data-state` on `#device-field`, so the colour and the dot stay in
+   sync with the text without the renderer setting a class as well. */
+.field__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: 0 var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.field__hint::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+#device-field[data-state='searching'] .field__hint {
+  color: var(--text-muted);
+}
+
+#device-field[data-state='searching'] .field__hint::before {
+  animation: pulse var(--dur-pulse) var(--ease) infinite;
+}
+
+/* A found device needs no commentary — the list itself is the answer. */
+#device-field[data-state='found'] .field__hint {
+  display: none;
+}
+
+#device-field[data-state='none'] .field__hint {
+  color: var(--warn);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Centre the count/refresh row in the footer strip: the top gap (hairline →
+   content) must equal the bottom gap (content → sidebar bottom edge). The
+   sidebar itself already contributes var(--space-5) of bottom padding below this
+   footer, so the top padding is that plus the footer's own bottom padding —
+   var(--space-6) top vs var(--space-1) bottom + var(--space-5) sidebar = equal. */
+.sidebar__footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-2) var(--space-1);
+  border-top: 1px solid var(--line-faint);
+}
+
+.sidebar__count {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* ================================================= 3 · MAIN · EMPTY ========= */
+
+/* The hero drop target. Borderless and transparent at rest — the whole window
+   is the drop zone, so there is no box to draw until a drag arrives — it just
+   centres its content and grows to fill the space above recents. The Clip page
+   collapses it (components below hide the empty face and show the card); the
+   Home page keeps this full-size empty face even when a clip is loaded, which is
+   what makes the stepper pure navigation.                                     */
+.file-zone {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-lg);
+  transition:
+    border-color var(--dur-med) var(--ease),
+    background-color var(--dur-med) var(--ease);
+}
+
+body[data-page='clip'] .file-zone {
+  flex-grow: 0;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+}
+
+/* Drag-accept, over EITHER face: dragging a new file onto an already-loaded
+   card must look as receptive as dragging onto the empty state. */
+.file-zone.is-dragging {
+  border-style: dashed;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---- empty face ---- */
+
+.file-zone__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  /* Governs the RETURN from the drag state only; the drag-in is instant (see
+     the suppression rule in the overlay section). */
+  transition:
+    opacity var(--dur-med) var(--ease),
+    visibility var(--dur-med) var(--ease);
+}
+
+body[data-page='clip'] .file-zone__empty {
+  display: none;
+}
+
+/* Just the transparent mascot PNG sitting on the page — no tile, no border, no
+   rounded box. Size holds the layout rhythm; `contain` shows the whole mascot
+   without a box to crop against. */
+.file-zone__mascot {
+  width: 104px;
+  height: 104px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.file-zone__title {
+  margin-top: var(--space-6);
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+
+.file-zone__hint {
+  margin-top: var(--space-2);
+  font-size: var(--fs-md);
+  color: var(--text-muted);
+}
+
+.file-zone__cta {
+  margin-top: var(--space-6);
+}
+
+.file-zone__formats {
+  margin-top: var(--space-5);
+  font-family: var(--font-num);
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+}
+
+/* Probing row replaces the CTA in the empty face — ffprobe on a large MKV is
+   slow enough that total silence read as a hang. */
+.file-zone__probing {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+}
+
+.file-zone.is-probing .file-zone__probing {
+  display: flex;
+}
+
+.file-zone.is-probing .file-zone__cta {
+  display: none;
+}
+
+/* ---- drag overlay ----
+   Shown over either face so the accept affordance never depends on which state
+   the zone is in. The face underneath is suppressed for the duration (below),
+   so the overlay's label is the only readable text, sitting on the zone's own
+   `--accent-soft` drag tint. */
+.file-zone__overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: inherit;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-medium);
+  color: var(--accent);
+  pointer-events: none;
+}
+
+.file-zone.is-dragging .file-zone__overlay {
+  display: flex;
+}
+
+/* Whichever face is showing is taken out of the picture for the drag, so the
+   overlay's label is the only readable text. `visibility` (not `display`) keeps
+   the box so the zone does not collapse under the overlay. The hide is instant
+   (`transition: none`) while the return fade is owned by the base rules on the
+   faces — cross-fading both ways would put two texts on screen at once. */
+.file-zone.is-dragging .file-zone__empty,
+.file-zone.is-dragging .file-card {
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+
+/* ---- recents ---- */
+
+.recents {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-5);
+}
+
+/* Recents belong to the Home page only. Its own [hidden] is JS-toggled off when
+   the list is empty; the Clip page hides it outright. (On Playing the whole
+   #shell is gone, so no rule is needed there.) */
+.recents[hidden],
+body[data-page='clip'] #recents {
+  display: none;
+}
+
+.recents__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.recents__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+/* The card root is a positioning context only (so the dismiss X can overlay the
+   top-right corner); the visible tile is `.recent-card__open`, which cannot be
+   the root because it is a <button> and a button may not nest the dismiss
+   button. */
+.recent-card {
+  position: relative;
+}
+
+.recent-card__open {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.recent-card__open:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+
+/* Per-card dismiss: a red X overlaid on the top-right corner. Discoverable at
+   rest (a muted red), fully red/opaque on hover or keyboard focus. A separate
+   control from the open button, so removing never triggers a resume. */
+.recent-card__dismiss {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--error);
+  background: var(--error-soft);
+  opacity: 0.72;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.recent-card__dismiss:hover,
+.recent-card__dismiss:focus-visible {
+  opacity: 1;
+  background: var(--error-soft);
+}
+
+.recent-card__thumb-wrap {
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  background: var(--surface-thumb);
+  overflow: hidden;
+}
+
+.recent-card__thumb {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* Before the renderer sets a data-URI thumbnail, hide the img so its
+   broken-image glyph does not show — the wrap's `--surface-thumb` well is the
+   placeholder. */
+.recent-card__thumb:not([src]) {
+  display: none;
+}
+
+.recent-card__name {
+  margin-top: var(--space-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-card__meta {
+  margin-top: 2px;
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* ================================================ 4 · MAIN · LOADED ========= */
+
+/* The compact file card. Both faces live in the DOM; `body[data-page]` swaps
+   which is shown (Clip → card, Home → empty face), which is why the collapse is
+   a transition and the card's fields can be filled before the swap without a
+   flash. */
+.file-card {
+  position: relative;
+  display: none;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-width: 0;
+  transition:
+    opacity var(--dur-med) var(--ease),
+    visibility var(--dur-med) var(--ease);
+}
+
+body[data-page='clip'] .file-card {
+  display: flex;
+}
+
+/* The thumbnail image, shown once the renderer sets a data-URI `src`. Until
+   then it is `visibility: hidden` — that keeps its 118px slot in the row (so the
+   body does not jump) while suppressing the broken-image glyph Chromium draws
+   for a src-less img; the film-glyph well below stands in for it. */
+.file-card__thumb {
+  width: 118px;
+  height: 66px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--surface-thumb);
+  object-fit: cover;
+}
+
+.file-card__thumb:not([src]) {
+  visibility: hidden;
+}
+
+/* The placeholder well: absolutely positioned over the thumb's reserved slot,
+   it IS the well (`--surface-thumb` + border) with the film glyph centred, and
+   shows only while the img has no `src`. Once a thumbnail arrives the
+   adjacent-sibling rule hides it and the image shows. The svg's viewBox scales
+   to the padded box, giving a ~34px centred glyph. */
+.file-card__icon {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 118px;
+  height: 66px;
+  padding: var(--space-4) 0;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--surface-thumb);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.file-card__thumb[src] + .file-card__icon {
+  display: none;
+}
+
+.file-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The one thing a user scans to confirm they are about to cast what they
+   think. */
+.file-card__name {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ONE string in the Space Mono "technical truth" voice (e.g.
+   "49:07 · 1080p HEVC · AC-3 5.1") — the renderer does not split it, so the
+   ` · ` separators ride the same colour. */
+.file-card__meta {
+  margin-top: var(--space-2);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-card__spinner {
+  display: none;
+}
+
+.file-zone.is-probing .file-card__spinner {
+  display: block;
+}
+
+/* ---- setup (launch → tracks → advanced), revealed on the Clip page ---- */
+
+#setup {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+body[data-page='clip'] #setup {
+  display: flex;
+}
+
+/* Primary action: START a session. Never a pause toggle (the casting view's
+   #play-pause owns transport once live), so it never changes its icon. */
+.launch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.launch__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  box-shadow: var(--shadow-1), var(--ring-inset);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.launch__btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.launch__btn:active:not(:disabled) {
+  background: var(--accent-active);
+  transform: translateY(1px);
+}
+
+/* The blanket `:disabled { opacity }` already dims it; drop the shadow too so a
+   device-less state does not look like a button merely out of focus. */
+.launch__btn:disabled {
+  box-shadow: none;
+}
+
+.launch__hint {
+  font-size: var(--fs-base);
+  color: var(--text-muted);
+}
+
+/* Audio & subtitles: a collapsed disclosure (#tracks) reusing the shared
+   .disclosure / .disclosure__summary / .disclosure__chevron / .disclosure__body
+   styles below, exactly like #advanced. Only the two-select layout inside its
+   body is bespoke. `hidden` is toggled by views/tracks.ts when there is no plan
+   (a <details> honours the `hidden` property the same as any element). */
+.track-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+/* ---- advanced disclosure ----
+   A real <details>/<summary>: keyboard toggle, ARIA and open/closed state come
+   from the UA. Visually recessive; most plays never open it. */
+.disclosure {
+  border-top: 1px solid var(--line-faint);
+  padding-top: var(--space-4);
+}
+
+.disclosure__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  padding: var(--space-1) var(--space-1) var(--space-1) 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  cursor: pointer;
+  list-style: none;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+/* Suppress the UA disclosure triangle in both spellings; we draw our own
+   chevron so it rotates on the same curve as everything else. */
+.disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure__summary::marker {
+  content: '';
+}
+
+.disclosure__summary:hover,
+.disclosure[open] .disclosure__summary {
+  color: var(--text-muted);
+}
+
+.disclosure__chevron {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  transition: transform var(--dur-med) var(--ease);
+}
+
+.disclosure[open] .disclosure__chevron {
+  transform: rotate(90deg);
+}
+
+.disclosure__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+}
+
+/* Surround + HDR policy, laid inline (wrapping) directly above the plan they
+   produce — seeing the plan change as you flip them is the whole argument for
+   putting them here. */
+#options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+#options[hidden] {
+  display: none;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+  cursor: pointer;
+  width: fit-content;
+}
+
+/* ---- plan chip ---- */
+
+.plan {
+  background: var(--surface-plan);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.plan[hidden] {
+  display: none;
+}
+
+.plan__line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* The technical summary, coloured by tier — the same four hues the CLI prints.
+   Fallback (any unexpected value) is accent, which reads as a bug, not a
+   feature. */
+.plan__summary {
+  font-family: var(--font-num);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-base);
+  color: var(--accent);
+}
+
+.plan__summary[data-tier='direct'] {
+  color: var(--tier-direct);
+}
+
+.plan__summary[data-tier='remux'] {
+  color: var(--tier-remux);
+}
+
+.plan__summary[data-tier='audio-transcode'] {
+  color: var(--tier-audio);
+}
+
+.plan__summary[data-tier='video-transcode'] {
+  color: var(--tier-video);
+}
+
+/* HDR outcome pill. Defaults to the "preserved" green from the design; the
+   renderer can flip it to warn/danger with a `.badge--*` modifier for a lossy
+   outcome. */
+#hdr-badge {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--ok-strong) 40%, transparent);
+  color: var(--ok-strong);
+}
+
+.plan__reasons {
+  margin-top: var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.plan__reasons summary {
+  cursor: pointer;
+  width: fit-content;
+  color: var(--text-muted);
+  list-style: none;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.plan__reasons summary::-webkit-details-marker {
+  display: none;
+}
+
+.plan__reasons summary:hover {
+  color: var(--text-dim);
+}
+
+#reasons-list {
+  margin-top: var(--space-2);
+  padding-left: var(--space-4);
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+#reasons-list li {
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  line-height: 1.6; /* readable wrap for a mono reason list; no matching token */
+  color: var(--text-dim);
+}
+
+/* ================================================== 5 · ACTIVITY BAR ========
+   A slim indeterminate bar pinned to the top edge, shown while the session gets
+   ready to play and during seek/reconnect. Indeterminate on purpose: on-demand
+   HLS has no percentage to fill. Colour carries the tier — the vocabulary the
+   old plan pill used, surviving without its text.                            */
+
+.activity {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 60; /* above the popover (50) and toasts (40) */
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-med) var(--ease);
+}
+
+.activity.is-working {
+  opacity: 1;
+}
+
+.activity::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  border-radius: var(--radius-pill);
+  background: var(--activity-color, var(--accent));
+  will-change: transform;
+  animation: activity-slide 1.15s var(--ease) infinite;
+}
+
+/* -100% of a 40%-wide bar parks it off the left; +250% of 40% runs its left
+   edge off the right. `overflow: hidden` on `.activity` clips both ends. */
+@keyframes activity-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+.activity[data-tier='direct'] {
+  --activity-color: var(--tier-direct);
+}
+
+.activity[data-tier='remux'] {
+  --activity-color: var(--tier-remux);
+}
+
+.activity[data-tier='audio-transcode'] {
+  --activity-color: var(--tier-audio);
+}
+
+.activity[data-tier='video-transcode'] {
+  --activity-color: var(--tier-video);
+}
+
+/* =================================================== 6 · CASTING VIEW =======
+   The full-bleed now-casting screen. `body[data-page="playing"]` hides #shell
+   and shows this; it owns the transport controls. Keyed on the PAGE, not on
+   `.is-casting`, so navigating to Home/Clip mid-cast hands the window back to
+   the shell while the session keeps running. Backdrop art fills it, a dark scrim
+   gradient sits over the art, and the content pins to the lower area.        */
+
+#casting-view {
+  display: none;
+}
+
+body[data-page='playing'] #shell {
+  display: none;
+}
+
+body[data-page='playing'] #casting-view {
+  display: flex;
+}
+
+.casting {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-mascot); /* behind the backdrop, before art loads */
+}
+
+.casting__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Before the renderer sets a backdrop data-URI, hide the img so its full-bleed
+   broken-image glyph does not show — `.casting`'s own `--surface-mascot` fill
+   stands in behind the scrim. */
+.casting__backdrop:not([src]) {
+  display: none;
+}
+
+/* 180deg dark gradient over the art — transparent at the top, near-opaque
+   `--surface-0-casting` at the foot where the controls sit. */
+.casting__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-0-casting) 35%, transparent) 0%,
+    color-mix(in srgb, var(--surface-0-casting) 50%, transparent) 45%,
+    color-mix(in srgb, var(--surface-0-casting) 96%, transparent) 100%
+  );
+}
+
+.casting__content {
+  position: relative;
+  z-index: 2;
+  margin-top: auto;
+  padding: var(--space-7) var(--space-7) var(--space-6);
+}
+
+.casting__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.casting__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse var(--dur-pulse) var(--ease) infinite;
+}
+
+/* The mono "technical truth" status caps: "CASTING TO <device>". */
+.casting__to {
+  font-family: var(--font-num);
+  font-size: var(--fs-sm);
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.casting__detail {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.casting__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+
+.casting__subtitle {
+  margin-top: var(--space-1);
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+}
+
+/* ---- transport ---- */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+}
+
+/* Glass transport buttons read on the backdrop through a translucent fill +
+   hairline. The primary play button and #stop override the geometry below. */
+.pbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--wash-hover);
+  color: var(--text-dim);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.pbtn:hover:not(:disabled) {
+  background: var(--wash-active);
+  color: var(--text);
+}
+
+.pbtn:active:not(:disabled) {
+  background: var(--wash-active);
+}
+
+/* The single brightest thing on the casting screen: the 58px coral play/pause
+   circle, floated on its own coral glow. */
+.pbtn--primary {
+  width: 58px;
+  height: 58px;
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: var(--shadow-accent);
+}
+
+.pbtn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  color: var(--text-on-accent);
+}
+
+.pbtn--primary:active:not(:disabled) {
+  background: var(--accent-active);
+}
+
+#stop {
+  width: 44px;
+  height: 44px;
+}
+
+/* Toggle buttons (CC pressed, the gear while its popover is open) read "on"
+   through colour AND a ring, so state does not depend on colour alone. */
+.pbtn[aria-pressed='true'],
+.pbtn.is-active,
+.pbtn[aria-expanded='true'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+/* ---- scrubber ---- */
+
+.scrubber {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.scrubber__time {
+  flex: 0 0 auto;
+  font-family: var(--font-num);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+#time-dur {
+  color: var(--text-muted);
+}
+
+.scrubber__track {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Shared range reset. `::-webkit-*` only, deliberately — this renderer is
+   Chromium and nothing else, so `::-moz-*` duplicates would be dead code. */
+input[type='range'] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type='range']:disabled {
+  cursor: default;
+}
+
+/* The played portion is painted by a gradient stop at `--progress`, which the
+   renderer sets each frame. No second stop for buffered content: the engine
+   reports no buffer level, so any shading would be invented. */
+#seek-bar::-webkit-slider-runnable-track {
+  height: var(--track-h-hover);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--progress, 0%),
+    var(--wash-active) var(--progress, 0%) 100%
+  );
+}
+
+/* Chromium positions the thumb from the TRACK's top edge, so centring it is
+   `-(thumb - track) / 2` — restated here against the 6px casting track. The
+   thumb rests visible (this is a dedicated player screen, not a hover-reveal
+   toolbar). */
+#seek-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+  margin-top: calc((var(--track-h-hover) - var(--thumb-size)) / 2);
+  border-radius: 50%;
+  border: none;
+  background: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+#seek-bar:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+#seek-bar:disabled::-webkit-slider-runnable-track {
+  background: var(--line);
+}
+
+/* Hover time readout. The renderer positions it (`style.left`), fills it, and
+   toggles `.is-visible`; CSS owns nothing but the appearance. */
+.scrubber__tip {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  transform: translateX(-50%);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-2);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.scrubber__tip.is-visible {
+  opacity: 1;
+}
+
+/* ---- tools (volume, CC, settings) ---- */
+
+.transport__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+/* Volume expands on hover OR focus. `:focus-within` is not optional — with
+   `:hover` alone the slider is unreachable from the keyboard, a functional bug
+   on a remote control. */
+.volume {
+  display: flex;
+  align-items: center;
+}
+
+#volume-bar {
+  width: 0;
+  opacity: 0;
+  transition:
+    width var(--dur-med) var(--ease),
+    opacity var(--dur-med) var(--ease),
+    margin var(--dur-med) var(--ease);
+}
+
+.volume:hover #volume-bar,
+.volume:focus-within #volume-bar {
+  width: 76px;
+  opacity: 1;
+  margin: 0 var(--space-2) 0 var(--space-1);
+}
+
+#volume-bar::-webkit-slider-runnable-track {
+  height: var(--track-h);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--text) 0 var(--progress, 100%),
+    var(--wash-active) var(--progress, 100%) 100%
+  );
+}
+
+/* Thumb centring restated against the 4px volume track (see the seek note). */
+#volume-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: calc((var(--track-h) - 11px) / 2);
+  border-radius: 50%;
+  border: none;
+  background: var(--text);
+}
+
+#volume-bar:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+/* ---- settings popover ---- */
+
+.popover-anchor {
+  position: relative;
+  display: flex;
+}
+
+.popover {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 50;
+  width: 280px;
+  max-width: calc(100vw - var(--space-6));
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-3);
+  box-shadow: var(--shadow-3), var(--ring-inset);
+
+  /* `visibility: hidden` (not `display: none`) keeps the panel out of the tab
+     order and a11y tree while still animating. The delayed `visibility` step
+     lets the fade-out finish before the panel is taken away. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition:
+    opacity var(--dur-med) var(--ease),
+    transform var(--dur-med) var(--ease),
+    visibility 0s linear var(--dur-med);
+}
+
+.popover.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity var(--dur-med) var(--ease),
+    transform var(--dur-med) var(--ease),
+    visibility 0s linear 0s;
+}
+
+.popover__title {
+  margin-bottom: var(--space-3);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.popover__field + .popover__field {
+  margin-top: var(--space-3);
+}
+
+.popover__label {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+/* ===================================================== 7 · RESPONSIVE =======
+   The window is resizable from 640x480. Three guards: a narrow-shell guard that
+   tightens the sidebar, a narrow-main guard that stacks the two-column grids,
+   and a short-window guard that shrinks the empty-state hero.                 */
+
+/* Narrow shell: reclaim horizontal room from the sidebar without hiding the
+   device picker, which must always stay reachable. */
+@media (max-width: 860px) {
+  .sidebar {
+    flex-basis: 210px;
+    width: 210px;
+    padding: var(--space-5) var(--space-2);
+  }
+
+  .main {
+    padding: var(--space-6) var(--space-5) var(--space-5);
+  }
+}
+
+/* Narrow main: stack the audio/subtitles pair and drop recents to two-up. */
+@media (max-width: 720px) {
+  .track-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .recents__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .file-zone__title {
+    font-size: var(--fs-2xl);
+  }
+
+  .field--inline {
+    flex-wrap: wrap;
+  }
+
+  .field--inline select {
+    min-width: 0;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .recents__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Short windows (toward the 480px minimum height) cannot afford a 104px mascot
+   and a 44px headline. Shrink the hero; it stays the primary target, just
+   proportionally. */
+@media (max-height: 600px) {
+  .file-zone {
+    padding: var(--space-5);
+  }
+
+  .file-zone__mascot {
+    width: 72px;
+    height: 72px;
+  }
+
+  .file-zone__title {
+    margin-top: var(--space-4);
+    font-size: var(--fs-2xl);
+  }
+
+  .casting__title {
+    font-size: var(--fs-2xl);
+  }
+}

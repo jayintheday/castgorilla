@@ -1,0 +1,58 @@
+/**
+ * fonts.css — the three self-hosted webfonts.
+ *
+ * The CSP (`default-src 'self'`) forbids remote fonts, so every family is
+ * vendored as a woff2 under ../assets/fonts/ and served same-origin. This file
+ * is imported FIRST by styles.css so the @font-face rules are registered before
+ * any rule that uses --font-display / --font-ui / --font-num (defined in
+ * tokens.css).
+ *
+ * Fredoka and Geist are shipped as VARIABLE fonts: one woff2 covers the whole
+ * weight axis, declared with a `font-weight` RANGE so the browser interpolates
+ * 400–700 from the single file. Space Mono is not variable, so it ships as two
+ * static files (400 / 700). All use `font-display: swap` — a system fallback
+ * shows immediately and is replaced when the woff2 arrives, which matters for a
+ * `file://` first paint.
+ *
+ * Paths are relative to THIS file (styles/), so `../assets/fonts/…` climbs one
+ * level to renderer/ then into assets/fonts/. Vite rebases + hashes these at
+ * build time under `base: './'`.
+ *
+ * Fonts fetched from Google Fonts (latin subset), all OFL / embeddable:
+ *   Fredoka v17, Geist v5, Space Mono v17.
+ */
+
+/* Fredoka — display / friendly. Variable, wght 400–700. */
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../assets/fonts/fredoka-variable.woff2') format('woff2');
+}
+
+/* Geist — all UI text. Variable, wght 400–700. */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../assets/fonts/geist-variable.woff2') format('woff2');
+}
+
+/* Space Mono — the technical voice. Static 400 + 700. */
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/space-mono-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/space-mono-700.woff2') format('woff2');
+}

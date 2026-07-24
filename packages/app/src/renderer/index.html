@@ -1,0 +1,1099 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cast Gorilla</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!--
+      =========================================================================
+      ELEMENT CONTRACT — read this before writing renderer wiring OR styling.
+      =========================================================================
+
+      This file is markup only. Behaviour is written in renderer/main.ts +
+      renderer/views/*.ts; styling is in styles/{tokens,base,components}.css +
+      styles/fonts.css. Everything below is the agreed surface between all three:
+      if the wiring reaches for something not listed here, or the CSS styles a
+      hook not listed here, it is reaching for something that does not exist.
+
+      Structure of this comment:
+        A. IDs — every one, and what it is for
+        B. State classes — what toggles them, on which element, what they do
+        C. data-* attributes — where, and the permitted values
+        D. CSS custom properties the renderer must set
+        E. Icon sprite — the available symbols
+        F. Fonts + mascot asset
+        G. What CHANGED from the previous build (removed / renamed / added)
+
+      THE BIG SHAPE (new in this redesign):
+        <body> holds, in order: the icon sprite, #activity (top edge), the
+        .topbar (44px drag strip, now hosting the #nav stepper), #banner, then
+        TWO mutually-exclusive views —
+          • #shell     — sidebar (device list) + main (file / setup / recents).
+                         The Empty and File-loaded faces both live here.
+          • #casting-view — the full-bleed now-casting screen (backdrop + big
+                         transport). It OWNS the transport controls.
+        `body[data-page]` swaps between them: `data-page="playing"` hides #shell
+        and shows #casting-view; every other page shows #shell. `body.is-casting`
+        is STILL set by player-bar.ts (it gates transport enablement + the
+        activity bar) but no longer drives the view swap. Finally #toasts. See
+        section C for the page attribute, section G for the two moves (the old
+        fixed player <footer>, and the view swap onto `data-page`).
+
+      -------------------------------------------------------------------------
+      A. IDs
+      -------------------------------------------------------------------------
+
+      TOP EDGE / TITLEBAR
+        #activity            <div class="activity">. Indeterminate activity bar
+                             pinned to the very top edge. views/activity.ts
+                             toggles `.is-working` (B) and sets `data-tier` (C)
+                             to tint it. Purely visual (aria-hidden); the spoken
+                             status is #status-line.
+        #mode-badge          <span class="badge badge--mock" hidden>. The MOCK
+                             MODE pill in the titlebar, parked at the right. Toggle
+                             `hidden`; set `.title` to the mode reason. The titlebar
+                             is the window drag region (-webkit-app-region: drag)
+                             and its content must clear --traffic-light-inset (78px)
+                             on the left, where macOS draws the real traffic
+                             lights. DO NOT draw fake traffic-light circles.
+
+        NAV STEPPER  (REPLACES the old static .topbar__title; the app name still
+                      lives in the sidebar wordmark, so the strip hosts this.)
+        #nav                 <nav aria-label="Pages">. The breadcrumb stepper,
+                             absolutely centred in the strip clear of the traffic
+                             lights (left) and #mode-badge (right). PURE NAVIGATION
+                             — a step changes only which page the window shows; it
+                             never stops the cast (Stop does) or clears the clip
+                             (the X does). Owned by views/nav.ts.
+        #nav-home            <button data-page="home">. "Home". Always reachable.
+        #nav-clip            <button data-page="clip">. "Video". Reachable once a
+                             file is loaded (state.file !== null, true while
+                             probing too); `disabled` otherwise.
+        #nav-playing         <button data-page="playing">. "Now Playing". Reachable
+                             once a session is active (isActiveState(status.state));
+                             `disabled` otherwise. The active step carries
+                             `aria-current="page"` (B) and is coral; reachable
+                             non-active steps are clickable; `disabled` steps are
+                             dimmed. Separated by decorative #icon-chevron glyphs
+                             (aria-hidden). Each button drives `body[data-page]`
+                             (C) via views/nav.ts's `deriveNavPage`.
+        #tray-toggle         <button class="tray-toggle">. Collapses/expands the
+                             device tray (the sidebar). Lives at the LEFT of the
+                             .topbar; the topbar's --traffic-light-inset left
+                             padding starts it clear of the real traffic lights.
+                             It is -webkit-app-region:no-drag (inherited from the
+                             base `button` rule) so the drag strip does not eat
+                             the click. views/tray.ts binds it: click toggles
+                             `body.tray-collapsed` (B); `aria-expanded` reflects
+                             the OPEN (not collapsed) state. Uses #icon-sidebar (E).
+
+      NOTIFICATIONS (behaviour NOT rewritten — restyle only)
+        #banner              Keyed persistent banners. Children are
+                             `div.banner-item.banner-item--warn|--error`, each
+                             with `data-key` (C); `#banner` is `hidden` with no
+                             children. setBanner()/clearBanner() unchanged.
+        #toasts              Transient toasts. Children `div.toast[.toast--error]`
+                             removed on a timer. Unchanged.
+
+      SHELL WRAPPER
+        #shell               <div class="shell">. Wraps the sidebar + main. It is
+                             the Empty AND File-loaded UI. Hidden by CSS when
+                             `body.is-casting` (the casting view takes over). No
+                             JS responsibility beyond existing.
+
+      SIDEBAR — the device picker lives here now (was an inline <select>).
+        #app-version         <span>, the ONLY content of .wordmark__meta — the
+                             version and nothing else, e.g. "v1.0.0". NEW.
+                             Set textContent to "v" + the version — main.ts does
+                             it once at boot from `__APP_VERSION__`, which Vite
+                             injects from packages/app/package.json (the same
+                             field electron-builder stamps into the bundle). It
+                             is NOT state: it never changes after boot and has no
+                             entry in AppState. Ships EMPTY in the markup so a
+                             version can never be hardcoded here again; the meta
+                             line therefore has no height until boot fills it,
+                             which is invisible in practice because the renderer
+                             entry is a deferred module that runs before the
+                             first paint. Keep the span even if the line ever
+                             gains more text again: the id is the contract.
+        #device-field        <div class="field">. Wrapper for the device area.
+                             Carries `data-state` (C) which drives the hint line.
+                             Id + attribute PRESERVED; deriveDeviceState/
+                             deviceHintText still drive it.
+        #device-list         <ul role="listbox" aria-label="Cast to">. NEW —
+                             REPLACES the old #device <select>. Each row is a
+                             `<li role="option" class="device-row">` built by
+                             views/device-picker.ts (clone #device-row-template).
+                             A row = status dot + name + type sub-label. The
+                             selected row gets `aria-selected="true"` (B) which
+                             lights the 3px accent bar + tint. Use ROVING
+                             tabindex: exactly one row has tabindex="0", the rest
+                             tabindex="-1"; wiring moves it with Arrow keys. The
+                             option's device id goes on `data-device-id`.
+        #device-row-template <template>. The row skeleton to clone per device.
+                             Slots by class: `.device-row__dot` (status dot),
+                             `.device-row__name`, `.device-row__type`.
+        #device-hint         <p class="field__hint">. One line under the list.
+                             textContent tracks `data-state`; hidden by CSS when
+                             data-state="found". Id PRESERVED.
+        #device-count        <span>. NEW. The sidebar footer count, e.g.
+                             "3 devices ready". Set textContent.
+        #device-refresh      <button>. NEW. Re-runs discovery. Wiring binds click
+                             to actions.refreshDevices() → api.rescanDevices(),
+                             which RE-QUERIES the network (not just re-reads the
+                             cache). While a refresh is in flight it carries
+                             `.is-refreshing` (B), which spins #icon-refresh.
+
+      MAIN — file zone, setup, recents (all siblings inside <main class="main">).
+        #file-zone           <section>. The hero (empty face) AND the compact
+                             file card (loaded face) — ONE element, two faces,
+                             switched by `.has-file` (B). Also the drag target.
+                             Carries all file state classes (B).
+        #open-file           <button>. "Choose a file…". Native picker. Id kept.
+        #file-name           <h2>. The chosen file's NAME (not path) — set from
+                             formatFileName(path); set `.title` to the full path.
+                             Id kept.
+        #file-meta           <p>. One-line metadata summary from
+                             formatFileMeta(media, plan), e.g.
+                             "49:07 · 1080p HEVC · AC-3 5.1". Rendered in the
+                             Space Mono (--font-num) "technical truth" voice.
+                             Empty string is valid. Id kept. (The mockup drew
+                             this as separate chips; it stays ONE element because
+                             the wiring sets ONE string — style the separators,
+                             do not expect the renderer to split it.)
+        #clear-file          <button>. Clears the file, returns to empty state
+                             (removes `.has-file`). Id kept.
+
+        #setup               <div>. Wrapper for launch + tracks + advanced,
+                             i.e. everything shown once a file is loaded EXCEPT
+                             the device list (which is now permanently in the
+                             sidebar). NO JS responsibility: CSS reveals it via
+                             `#file-zone.has-file ~ #setup`. Id kept.
+        #launch-hint         <p>. NEW, optional. The "Ready to cast · <place>"
+                             line beside the primary button. Wiring MAY set it
+                             from the selected device; static text is acceptable.
+
+      LAUNCH
+        #play-primary        <button class="launch__btn">. Primary action of the
+                             loaded state: START a session. NOT a toggle — never
+                             becomes Pause, never swaps its icon; a live session
+                             raises the casting view whose #play-pause owns
+                             transport. `disabled` mirrors canStartSession(). Id
+                             kept. (It NO LONGER sits on the device row — the
+                             device list moved to the sidebar; the button now
+                             leads the #setup column.)
+        #play-primary-label  <span> inside it. "Play", or "Casting" while a
+                             session is live and the button is disabled. Id kept.
+
+      TRACKS  (a collapsed <details class="disclosure">, matching #advanced)
+        #tracks              <details class="disclosure" hidden>. The AUDIO &
+                             SUBTITLES disclosure: collapsed by default (UA owns
+                             open/closed + ARIA), a <summary> label + two selects
+                             in a row inside .disclosure__body. `hidden` is still
+                             toggled by views/tracks.ts when there is no
+                             media/plan. Id kept.
+        #audio-track         <select>. Id kept.
+        #sub-track           <select>. Id kept. "off" is the no-subtitles
+                             sentinel.
+
+      ADVANCED
+        #advanced            <details class="disclosure">. Collapsed by default;
+                             UA owns open/closed + ARIA. Id kept.
+        #options             <div>. Wrapper for surround + HDR policy. Id kept.
+        #surround            <input type="checkbox">. Id kept.
+        #hdr-policy          <select> "warn" | "block". Id kept.
+        #plan-section        <div class="plan" hidden>. The plan chip. Toggle
+                             `hidden`. Id kept. (Styled as the coral-tinted
+                             "plan chip" in the design — surface --surface-plan.)
+        #plan-summary        <span>. Technical summary from formatPlanSummary(),
+                             Space Mono. Also takes `data-tier` (C) for colour.
+                             Id kept.
+        #hdr-badge           <span class="badge" hidden>. HDR outcome pill (e.g.
+                             "HDR PRESERVED"). Toggle `hidden`, set textContent.
+                             Prefer a modifier class over inline style for the
+                             colour. Id kept.
+        #plan-reasons        <details>. "Why this plan?". Id kept.
+        #reasons-list        <ul>. One <li> per planner reason. Id kept.
+
+      RECENTS  (Empty face only — hidden when a file is loaded, and when empty)
+        #recents             <section hidden>. "PICK UP WHERE YOU LEFT OFF"
+                             label + #recents-clear + #recents-grid. NEW. Shown
+                             only in the empty state and only when it has cards;
+                             CSS hides it under `#file-zone.has-file ~ #recents`.
+                             Wiring toggles `hidden` when there are no recents.
+        #recents-clear       <button>. NEW. Clears the recents list.
+        #recents-grid        <div>. NEW. The 3-up card grid; wiring populates it
+                             by cloning #recents-card-template.
+        #recents-card-template <template>. One recents card. The root is a
+                             `.recent-card` <div> (a POSITIONING context, NOT a
+                             button — a button cannot nest a button) carrying the
+                             file path on `data-path`. Inside it, two sibling
+                             controls: `.recent-card__open` (the <button> holding
+                             thumb + name + meta — the whole open/resume target,
+                             keyboard-openable) and `.recent-card__dismiss` (a
+                             separate <button>, #icon-close, overlaid top-right,
+                             red, removes ONLY this recent). Slots by class:
+                             `.recent-card__thumb` (an <img>, set .src to a
+                             data-URI from getThumbnail), `.recent-card__name`,
+                             `.recent-card__meta` ("yesterday · 34% in").
+
+      CASTING VIEW  (shown only when body.is-casting; owns the transport)
+        #casting-view        <section>. Full-bleed now-casting screen. Hidden by
+                             CSS unless `body.is-casting`. NEW wrapper.
+        #casting-backdrop    <img>. The still-frame backdrop; wiring sets .src to
+                             a data-URI from getThumbnail(variant:'backdrop').
+                             A CSS scrim (180deg dark gradient) sits over it. NEW.
+        #casting-device      <span>. Device name inside the "CASTING TO <name>"
+                             Space Mono status line. NEW.
+        #status-line         <p aria-live="polite">. The honest status sentence
+                             from formatDeviceStatus(status), e.g. "Casting to
+                             Living Room · Converting video". Id kept — it is the
+                             accessible status. (Sits as the muted detail beside
+                             the CASTING TO line.)
+        #casting-title       <h1>. The media title, Fredoka (--font-display).
+                             Wiring sets from formatFileName / media. NEW.
+        #casting-subtitle    <p>. The sub-line, e.g. "Season 2 · Episode 5 ·
+                             720p HEVC → H.264". NEW.
+
+      TRANSPORT  (inside #casting-view — the ids are unchanged from the old
+                  player footer, only their home moved)
+        #play-pause          <button>. ONE play/pause toggle (58px coral circle
+                             in the design). Wiring owns its click, aria-label
+                             ("Play"/"Pause") and icon (see #play-pause-icon).
+                             `disabled` gates transport. Id kept.
+        #play-pause-icon     The <use> INSIDE #play-pause. Swap href between
+                             '#icon-play' and '#icon-pause'. Id kept.
+        #stop                <button>. Id kept.
+        #seek-bar            <input type="range" min=0 max=1000 step=1>. Range
+                             input PRESERVED (free keyboard + SR seeking). Set
+                             `--progress` each frame (D). Id kept.
+        #seek-tooltip        <div>. Hover time readout. Wiring owns `style.left`
+                             (px, CSS centres with -50%), textContent and the
+                             `.is-visible` class (B). Id kept.
+        #time-pos            <span>. Current position, tabular. Id kept.
+        #time-dur            <span>. Duration, tabular. Id kept.
+        #mute                <button>. Speaker button. aria-label tracks the
+                             action ("Mute"/"Unmute"). Id kept.
+        #volume-icon         The <use> INSIDE #mute. Swap href to
+                             '#icon-volume-muted' | '-low' | '-high' (1:1 with
+                             volumeLevel(volume, muted)). Id kept.
+        #volume-bar          <input type="range" min=0 max=100 step=1>. Set
+                             `--progress` (D). Id kept.
+        #volume-label        <span class="sr-only">. Visually hidden, for SR.
+                             Keep setting textContent. Id kept.
+        #cc                  <button>. Subtitle toggle. Reflect on/off with
+                             `aria-pressed` (B). Id kept.
+        #settings            <button>. Opens the popover. Reflect open with
+                             `aria-expanded` (B). Id kept.
+        #settings-popover    <div role="dialog">. Mirrored track pickers for
+                             changing tracks mid-playback. Toggle `.is-open` (B);
+                             NOT the `hidden` property (CSS animates visibility).
+                             Id kept.
+        #audio-track-mini    <select>. Mirror of #audio-track; keep in sync both
+                             ways. Id kept.
+        #sub-track-mini      <select>. Mirror of #sub-track, same "off" sentinel.
+                             Id kept.
+
+      -------------------------------------------------------------------------
+      B. STATE CLASSES — set/removed by the renderer
+      -------------------------------------------------------------------------
+
+      on #file-zone
+        .has-file      A FACT: a file is chosen. Still set by drop-zone.ts on
+                       `state.file !== null`. It NO LONGER switches the file-zone
+                       face or reveals #setup/#recents — that moved onto
+                       `body[data-page]` (C), so Home can show the drop zone even
+                       with a clip loaded. Kept because it is an honest fact and
+                       the drag affordance may key off it. Does NOT raise the
+                       casting view — that is `body[data-page="playing"]`.
+        .is-dragging   A drag carrying an acceptable file is over the window.
+                       Accent border + tint + the "Drop the video here" overlay.
+                       Works in BOTH faces. Remove on dragleave AND on drop.
+        .is-probing    ffprobe is running. Empty face: swaps the button for a
+                       spinner row. Loaded face: spinner in the card. May combine
+                       with .has-file (named, metadata pending).
+
+      on <body>
+        .is-casting    A session is in an ACTIVE state — set by
+                       views/player-bar.ts from isActiveState(status.state), the
+                       same flag that enables the transport controls and the
+                       activity bar. It NO LONGER swaps the view: the shell↔casting
+                       swap moved onto `body[data-page="playing"]` (C), because you
+                       can be casting yet navigated to Home/Clip (shell visible).
+                       Still removed the moment the session ends. (In the previous
+                       build this both gated transport AND slid the view; see G.)
+        .tray-collapsed  The device tray (the .sidebar) is collapsed. Toggled by
+                       #tray-toggle via views/tray.ts. When set, the .sidebar
+                       slides LEFT off-screen to zero width (transform + width:0 +
+                       no padding/border) and .main fills the freed space;
+                       animated with --dur-med/--ease and snapped under
+                       prefers-reduced-motion. `visibility:hidden` in the collapsed
+                       state takes the sidebar's contents out of the tab order and
+                       the a11y tree. DEFAULT is EXPANDED (class absent) on every
+                       launch — not persisted. Pure view state; NOT in AppState.
+                       Irrelevant while casting (the shell, and this toggle, are
+                       hidden by .is-casting).
+
+      on #activity
+        .is-working    Session is preparing/connecting/loading/buffering, or
+                       seeking/reconnecting — from isWorking(status.state). Fades
+                       the indeterminate bar in. Off during playing/paused/idle.
+
+      on #seek-tooltip
+        .is-visible    Fades the hover time readout in; pair with `style.left`.
+
+      on #device-refresh
+        .is-refreshing Set by views/device-picker.ts for a visible minimum
+                       (REFRESH_MIN_MS) after Refresh is pressed. Spins
+                       #icon-refresh and, alongside it, pins #device-field
+                       data-state="searching" + the "Searching…" count, so an
+                       instant rescan still reads as an action. Frozen (not spun)
+                       under prefers-reduced-motion — the count carries it.
+
+      on #settings-popover
+        .is-open       Opens the popover (else visibility:hidden, out of the tab
+                       order + a11y tree).
+
+      on #cc (and any toggle button)
+        aria-pressed="true"   THE state signal — lights the button accent.
+        .is-active            Accepted as a synonym by the same CSS rule.
+
+      on #settings
+        aria-expanded="true"  Lights the gear while its popover is open; keep in
+                              step with #settings-popover.is-open.
+
+      on a #nav step (#nav-home / #nav-clip / #nav-playing)
+        aria-current="page"   Marks the page currently shown — colours the step
+                              coral. Exactly one step at a time; set by views/nav.ts
+                              in step with `body[data-page]`.
+        :disabled             A step whose stage is not reachable yet (no clip /
+                              no active session) — dimmed and inert.
+
+      on a #device-list row (<li role="option">)
+        aria-selected="true"  Marks the chosen device — lights the 3px left
+                              accent bar + tint. Exactly one row at a time.
+
+      -------------------------------------------------------------------------
+      C. data-* ATTRIBUTES
+      -------------------------------------------------------------------------
+
+      body[data-page]             The nav page currently shown; THE view-switch
+                                  source of truth (replaces the old
+                                  .has-file/.is-casting switching). Set by
+                                  views/nav.ts every render. Values:
+                                    "home"    → #shell; #file-zone shows the empty
+                                                (drop-zone) face; #recents eligible;
+                                                #setup hidden.
+                                    "clip"    → #shell; #file-zone shows the compact
+                                                .file-card face; #setup shown;
+                                                #recents hidden.
+                                    "playing" → #shell hidden, #casting-view shown;
+                                                #tray-toggle hidden.
+                                  Reachability: home always; clip iff a file is
+                                  loaded; playing iff a session is active. Present
+                                  on every launch (defaults "home").
+      #activity[data-tier]        Set while .is-working; tints the bar. Absent
+                                  when idle (falls back to accent).
+      #plan-summary[data-tier]    Colours the technical line. Permitted values
+                                  (the RAW PlaybackTier, never the label text):
+                                    "direct"          → green (--tier-direct)
+                                    "remux"           → blue  (--tier-remux)
+                                    "audio-transcode" → amber (--tier-audio)
+                                    "video-transcode" → pink  (--tier-video)
+                                  Same four colours the CLI prints. Any other
+                                  value falls back to accent — a bug, not a
+                                  feature.
+      #device-field[data-state]   Required; drives the hint line.
+                                    "searching" → muted hint (pulsing dot)
+                                    "found"     → hint hidden (the list answers)
+                                    "none"      → hint in warning amber
+      #banner > *[data-key]       The banner de-duplication key. Unchanged.
+      #device-list li[data-device-id]  The device id for a row (wiring reads it
+                                  on click / arrow-select).
+      #recents-card-template .recent-card[data-path]  The recent file's path
+                                  (on the card's root <div>; views/recents.ts
+                                  reads it for both open and dismiss).
+
+      -------------------------------------------------------------------------
+      D. CSS CUSTOM PROPERTIES THE RENDERER MUST SET
+      -------------------------------------------------------------------------
+
+      --progress   on #seek-bar and #volume-bar, as a PERCENTAGE STRING:
+                     el.style.setProperty('--progress', `${pct}%`)
+                   The gradient stop that paints the filled part of the track.
+                   Without it the seek bar is permanently empty and the volume
+                   bar permanently full. Set the seek bar's value AND --progress
+                   both in the rAF loop. No buffered-range shading (the engine
+                   reports no buffer level; drawing one would be a lie).
+
+      --player-inset  NOT set by the renderer. Retained token — how much room a
+                   bar occupies at the foot of the window. The casting view is
+                   full-bleed, so this is legacy; base.css still references it.
+
+      -------------------------------------------------------------------------
+      E. ICON SPRITE
+      -------------------------------------------------------------------------
+
+      Inline <svg> symbols only — governed by `default-src 'self'`, which the CSP
+      allows. Every symbol is single-colour and inherits `currentColor`.
+      Reference:   <svg class="icon"><use href="#icon-play" /></svg>
+
+      Available: #icon-play  #icon-pause  #icon-stop  #icon-volume-muted
+                 #icon-volume-low  #icon-volume-high  #icon-cc  #icon-settings
+                 #icon-film  #icon-close  #icon-chevron
+                 #icon-refresh (NEW, sidebar refresh)
+                 #icon-folder  (NEW, "choose a file" affordance)
+                 #icon-sidebar (NEW, panel-left glyph for #tray-toggle)
+
+      Size classes: .icon (20px), .icon--sm (16px), .icon--lg (24px).
+
+      -------------------------------------------------------------------------
+      F. FONTS + MASCOT ASSET
+      -------------------------------------------------------------------------
+
+      Three self-hosted webfonts (OFL), loaded by styles/fonts.css and exposed
+      as tokens (see tokens.css):
+        --font-display  Fredoka     — big friendly moments (headline, casting
+                                       title, wordmark). letter-spacing -.01em.
+        --font-ui       Geist       — all UI text (default on <body>).
+        --font-num      Space Mono  — the "technical truth": #file-meta,
+                                       timestamps, the plan chip, device counts,
+                                       format list, CASTING TO line.
+
+      Mascot: <img src="./assets/castgorilla.png"> (resolves under Vite
+      base:'./'). SHIPPED AS A PLACEHOLDER (a generated warm tile) — replace with
+      the real mascot art. Used in the sidebar wordmark and the empty-state hero.
+
+      -------------------------------------------------------------------------
+      G. WHAT CHANGED FROM THE PREVIOUS BUILD
+      -------------------------------------------------------------------------
+
+      Removed:
+        <span class="topbar__title">Cast Gorilla</span>
+                               → REPLACED by <nav id="nav"> — the breadcrumb
+                                 stepper (Home › Video › Now Playing). The app name
+                                 already lives in the sidebar wordmark, so the
+                                 strip hosts the stepper instead of a second title.
+        <select id="device">   → REPLACED by <ul id="device-list"> in the
+                                 sidebar (accessible listbox, roving tabindex).
+                                 views/device-picker.ts must build <li> rows
+                                 instead of <option>s; the pure helpers
+                                 deriveDeviceState / deviceHintText / and the
+                                 #device-field[data-state] + #device-hint
+                                 contract are UNCHANGED.
+        <footer class="player"> → REMOVED. The transport controls (same ids)
+                                 moved INTO #casting-view.
+
+      View-switch moved onto body[data-page] (was .has-file / .is-casting):
+        The shell↔casting swap, the empty↔card file-zone face, and the
+        setup/recents reveal are now ALL keyed off `body[data-page]` (C), set by
+        views/nav.ts. `.is-casting` is still set (it gates transport + the
+        activity bar) but no longer swaps the view — so navigating to Home/Clip
+        mid-cast shows the shell while the session keeps running. `.has-file` is
+        still set as a fact but no longer switches the file-zone face.
+
+      Renamed / relocated:
+        #play-primary          → still leads #setup, but no longer shares a row
+                                 with the (now removed) inline device select.
+
+      Added:
+        #app-version (the sidebar wordmark's version string, filled at boot from
+          the build-time `__APP_VERSION__` — it REPLACES the whole hardcoded
+          "v1.4 · your Mac" line, whose version agreed with nothing, least of all
+          the packaged bundle's. The " · your Mac" half is GONE too, by request:
+          the line is now the version and nothing else);
+        #shell, #casting-view (the two swapped views);
+        #device-list, #device-row-template, #device-count, #device-refresh;
+        #launch-hint;
+        #recents, #recents-clear, #recents-grid, #recents-card-template
+          (card root is now a `.recent-card` <div> wrapping a
+          `.recent-card__open` button + a red `.recent-card__dismiss` button);
+        #casting-backdrop, #casting-device, #casting-title, #casting-subtitle;
+        #tray-toggle (drag-strip tray collapse) + body.tray-collapsed state;
+        #nav + #nav-home/#nav-clip/#nav-playing (the breadcrumb stepper) +
+          body[data-page] (the view-switch source of truth);
+        sprite: #icon-refresh, #icon-folder, #icon-sidebar.
+
+      Every id in the previous build's `ui` object that carried behaviour keeps
+      its id (see A). Every id read via el() — including the four #nav ids — is
+      present.
+      =========================================================================
+    -->
+
+    <!-- Icon sprite. Hidden from layout and assistive tech; 24x24 grid,
+         currentColor. -->
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      style="display: none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <symbol id="icon-play" viewBox="0 0 24 24" fill="currentColor">
+        <path
+          d="M8 5.14v13.72a1 1 0 0 0 1.54.84l10.29-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14Z"
+        />
+      </symbol>
+
+      <symbol id="icon-pause" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="6.5" y="4.5" width="4" height="15" rx="1.3" />
+        <rect x="13.5" y="4.5" width="4" height="15" rx="1.3" />
+      </symbol>
+
+      <!-- Sized by eye: a filled square reads larger than a triangle or bars
+           with the same box, so 13 balances the pause bars' 15. `rx` matches the
+           pause bars so the corner treatment is identical across transport. -->
+      <symbol id="icon-stop" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="5.5" y="5.5" width="13" height="13" rx="1.3" />
+      </symbol>
+
+      <!-- The three speaker glyphs share one body path so the icon does not jump
+           as the level band changes; only the waves differ. -->
+      <symbol
+        id="icon-volume-muted"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M4 9.5h3.3L12 5.6a.75.75 0 0 1 1.25.58v11.64A.75.75 0 0 1 12 18.4L7.3 14.5H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z"
+          fill="currentColor"
+          stroke="none"
+        />
+        <path d="M16.8 9.8l4.4 4.4M21.2 9.8l-4.4 4.4" />
+      </symbol>
+
+      <symbol
+        id="icon-volume-low"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M4 9.5h3.3L12 5.6a.75.75 0 0 1 1.25.58v11.64A.75.75 0 0 1 12 18.4L7.3 14.5H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z"
+          fill="currentColor"
+          stroke="none"
+        />
+        <path d="M16.4 9.6a3.4 3.4 0 0 1 0 4.8" />
+      </symbol>
+
+      <symbol
+        id="icon-volume-high"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M4 9.5h3.3L12 5.6a.75.75 0 0 1 1.25.58v11.64A.75.75 0 0 1 12 18.4L7.3 14.5H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z"
+          fill="currentColor"
+          stroke="none"
+        />
+        <path d="M16.4 9.6a3.4 3.4 0 0 1 0 4.8" />
+        <path d="M19.1 7.1a7 7 0 0 1 0 9.8" />
+      </symbol>
+
+      <!-- Closed captions: frame plus two 'c' arcs, drawn (not text) so it stays
+           legible at 20px and never picks up a font. -->
+      <symbol
+        id="icon-cc"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+        <path d="M10.2 10.4a2.7 2.7 0 1 0 0 3.2" />
+        <path d="M17.4 10.4a2.7 2.7 0 1 0 0 3.2" />
+      </symbol>
+
+      <symbol
+        id="icon-settings"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="3.1" />
+        <path
+          d="M19.3 13.1a7.6 7.6 0 0 0 0-2.2l2-1.5-2-3.4-2.4 1a7.6 7.6 0 0 0-1.9-1.1L14.6 3.4h-3.9l-.4 2.5a7.6 7.6 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.5a7.6 7.6 0 0 0 0 2.2l-2 1.5 2 3.4 2.4-1a7.6 7.6 0 0 0 1.9 1.1l.4 2.5h3.9l.4-2.5a7.6 7.6 0 0 0 1.9-1.1l2.4 1 2-3.4Z"
+        />
+      </symbol>
+
+      <symbol
+        id="icon-film"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="2.5" y="4" width="19" height="16" rx="2.5" />
+        <path d="M7.5 4v16M16.5 4v16M2.5 12h19M2.5 8h5M2.5 16h5M16.5 8h5M16.5 16h5" />
+      </symbol>
+
+      <symbol
+        id="icon-close"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+      </symbol>
+
+      <symbol
+        id="icon-chevron"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M9 5l7 7-7 7" />
+      </symbol>
+
+      <!-- Refresh (Feather refresh-cw). Two arcs, each ending in a corner arrow.
+           Used by the sidebar #device-refresh. -->
+      <symbol
+        id="icon-refresh"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M20.5 10V4.5M20.5 10H15" />
+        <path d="M3.5 14v5.5M3.5 14H9" />
+        <path
+          d="M4.6 9a8 8 0 0 1 13.2-3l2.7 2.5M19.4 15a8 8 0 0 1-13.2 3L3.5 15.5"
+        />
+      </symbol>
+
+      <!-- Folder (Feather folder). Optional open/choose affordance. -->
+      <symbol
+        id="icon-folder"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2Z"
+        />
+      </symbol>
+
+      <!-- Panel-left (Feather sidebar): a rounded panel with a left divider.
+           Used by #tray-toggle in the drag strip to collapse the device tray. -->
+      <symbol
+        id="icon-sidebar"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="3" y="4" width="18" height="16" rx="2.5" />
+        <path d="M9 4v16" />
+      </symbol>
+    </svg>
+
+    <!-- Indeterminate activity bar, pinned to the very top edge. Purely visual
+         (aria-hidden): #status-line is the accessible announcement. Position is
+         fixed, so DOM order is layout-irrelevant; it sits here for reading order. -->
+    <div id="activity" class="activity" aria-hidden="true"></div>
+
+    <!-- Titlebar / drag strip. titleBarStyle:'hiddenInset' — the OS traffic
+         lights are drawn over the left of this strip; the title is centred and
+         must clear --traffic-light-inset. No fake circles. -->
+    <header class="topbar">
+      <!-- Collapses the device tray. First in-flow child, so the topbar's
+           --traffic-light-inset left padding already starts it clear of the real
+           macOS traffic lights. -webkit-app-region:no-drag is inherited from the
+           base `button` rule, so the press is not eaten by the drag strip. -->
+      <button
+        id="tray-toggle"
+        class="tray-toggle"
+        type="button"
+        aria-label="Toggle device tray"
+        aria-expanded="true"
+      >
+        <svg class="icon" aria-hidden="true"><use href="#icon-sidebar" /></svg>
+      </button>
+      <!-- Breadcrumb stepper. PURE NAVIGATION: a step only changes which page
+           the window shows — it never stops the cast or clears the clip. The
+           active step carries aria-current="page" (coral); reachable steps are
+           clickable; not-yet-reachable steps are `disabled` (dimmed). Which page
+           is current lives on `body[data-page]` (section C), set by views/nav.ts,
+           and that attribute — not `.has-file`/`.is-casting` — drives the view
+           swap. Buttons inherit -webkit-app-region:no-drag from the base rule. -->
+      <nav id="nav" class="nav" aria-label="Pages">
+        <button id="nav-home" class="nav__step" type="button" data-page="home">Home</button>
+        <svg class="nav__chevron" aria-hidden="true"><use href="#icon-chevron" /></svg>
+        <button id="nav-clip" class="nav__step" type="button" data-page="clip">Video</button>
+        <svg class="nav__chevron" aria-hidden="true"><use href="#icon-chevron" /></svg>
+        <button id="nav-playing" class="nav__step" type="button" data-page="playing">Now Playing</button>
+      </nav>
+      <span id="mode-badge" class="badge badge--mock" hidden>Mock</span>
+    </header>
+
+    <div id="banner" class="banner" role="alert" hidden></div>
+
+    <!-- ===================================================================
+         SHELL — the Empty and File-loaded faces. Hidden when body.is-casting.
+         =================================================================== -->
+    <div id="shell" class="shell">
+      <!-- SIDEBAR — wordmark, PLAY TO, device list, footer count + refresh. -->
+      <aside class="sidebar">
+        <div class="wordmark">
+          <img
+            class="wordmark__mark"
+            src="./assets/castgorilla.png"
+            alt=""
+            aria-hidden="true"
+          />
+          <div class="wordmark__text">
+            <div class="wordmark__name">Cast Gorilla</div>
+            <div class="wordmark__meta"><span id="app-version"></span></div>
+          </div>
+        </div>
+
+        <p class="sidebar__label">My devices</p>
+
+        <!-- Device picker. #device-field + data-state + #device-hint are the
+             preserved contract; #device-list REPLACES the old <select>. -->
+        <div id="device-field" class="field" data-state="searching">
+          <ul id="device-list" class="device-list" role="listbox" aria-label="Cast to">
+            <!-- rows cloned from #device-row-template by views/device-picker.ts -->
+          </ul>
+          <p id="device-hint" class="field__hint">Looking for devices on your network…</p>
+        </div>
+
+        <div class="sidebar__footer">
+          <span id="device-count" class="sidebar__count">Searching…</span>
+          <button id="device-refresh" class="link-btn" type="button">
+            <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-refresh" /></svg>
+            Refresh
+          </button>
+        </div>
+      </aside>
+
+      <!-- MAIN — file zone, setup, recents (siblings; .has-file toggles them). -->
+      <main class="main">
+        <!-- 1. FILE — hero drop zone (empty face) that collapses to a card. -->
+        <section id="file-zone" class="file-zone" aria-label="Video file">
+          <!-- Empty face: mascot + Fredoka headline + choose button + formats. -->
+          <div class="file-zone__empty">
+            <img
+              class="file-zone__mascot"
+              src="./assets/castgorilla.png"
+              alt=""
+              aria-hidden="true"
+            />
+            <h1 class="file-zone__title">What are we watching?</h1>
+            <p class="file-zone__hint">Drop a video anywhere in this window.</p>
+            <div class="file-zone__cta">
+              <button id="open-file" class="btn btn--accent" type="button">Choose a file…</button>
+            </div>
+            <p class="file-zone__formats">MP4 · MKV · MOV · WebM · AVI · +more</p>
+
+            <!-- Shown while probing (empty face) — swaps the button row. -->
+            <div class="file-zone__probing">
+              <span class="spinner" aria-hidden="true"></span>
+              <span>Reading the file…</span>
+            </div>
+          </div>
+
+          <!-- Loaded face: the compact file card. -->
+          <div class="file-card">
+            <img class="file-card__thumb" alt="" aria-hidden="true" />
+            <svg class="file-card__icon" aria-hidden="true"><use href="#icon-film" /></svg>
+            <div class="file-card__body">
+              <h2 id="file-name" class="file-card__name">No file selected</h2>
+              <p id="file-meta" class="file-card__meta"></p>
+            </div>
+            <span class="spinner file-card__spinner" aria-hidden="true"></span>
+            <button id="clear-file" class="icon-btn" type="button" aria-label="Clear file">
+              <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-close" /></svg>
+            </button>
+          </div>
+
+          <div class="file-zone__overlay" aria-hidden="true">Drop the video here</div>
+        </section>
+
+        <!-- 2. SETUP — revealed by CSS on `#file-zone.has-file ~ #setup`.
+             Launch → Audio & Subtitles → Advanced. The device list is NOT here
+             any more (it is permanently in the sidebar). -->
+        <div id="setup">
+          <!-- Primary action: START a session. Never a pause button. -->
+          <div class="launch">
+            <button id="play-primary" class="launch__btn" type="button" disabled>
+              <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+              <span id="play-primary-label">Play</span>
+            </button>
+            <p id="launch-hint" class="launch__hint">Ready to cast</p>
+          </div>
+
+          <!-- 3. AUDIO & SUBTITLES — a collapsed-by-default disclosure, matching
+               the sibling #advanced below. `hidden` still toggled by
+               views/tracks.ts when there is no plan. -->
+          <details id="tracks" class="disclosure" hidden>
+            <summary class="disclosure__summary">
+              <svg class="disclosure__chevron" aria-hidden="true">
+                <use href="#icon-chevron" />
+              </svg>
+              Audio &amp; Subtitles
+            </summary>
+
+            <div class="disclosure__body">
+              <div class="track-row">
+                <div class="field field--stacked">
+                  <label class="field__label" for="audio-track">Audio track</label>
+                  <div class="field__control">
+                    <select id="audio-track"></select>
+                  </div>
+                </div>
+                <div class="field field--stacked">
+                  <label class="field__label" for="sub-track">Subtitles</label>
+                  <div class="field__control">
+                    <select id="sub-track"></select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <!-- 4. ADVANCED — collapsed by default; the two replan controls sit
+               directly above the plan chip they produce. -->
+          <details id="advanced" class="disclosure">
+            <summary class="disclosure__summary">
+              <svg class="disclosure__chevron" aria-hidden="true">
+                <use href="#icon-chevron" />
+              </svg>
+              Advanced
+            </summary>
+
+            <div class="disclosure__body">
+              <div id="options" class="options">
+                <label class="checkbox">
+                  <input type="checkbox" id="surround" />
+                  Prefer surround (5.1)
+                </label>
+                <div class="field field--inline">
+                  <label class="field__label" for="hdr-policy">HDR policy</label>
+                  <div class="field__control">
+                    <select id="hdr-policy">
+                      <option value="warn">Warn — preserve, note washout</option>
+                      <option value="block">Block HDR-lossy paths</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- The plan chip (styled on --surface-plan). -->
+              <div id="plan-section" class="plan" hidden>
+                <div class="plan__line">
+                  <span id="plan-summary" class="plan__summary"></span>
+                  <span id="hdr-badge" class="badge" hidden></span>
+                </div>
+                <details id="plan-reasons" class="plan__reasons">
+                  <summary>Why this plan?</summary>
+                  <ul id="reasons-list"></ul>
+                </details>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- 5. RECENTS — Empty face only. Hidden when a file is loaded
+             (`#file-zone.has-file ~ #recents`) and when there are no cards. -->
+        <section id="recents" class="recents" hidden>
+          <div class="recents__head">
+            <p class="section-label">Pick up where you left off</p>
+            <button id="recents-clear" class="link-btn" type="button">Clear</button>
+          </div>
+          <div id="recents-grid" class="recents__grid">
+            <!-- cards cloned from #recents-card-template -->
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- ===================================================================
+         CASTING VIEW — full-bleed now-casting screen. Shown when
+         body.is-casting; hidden otherwise. Owns the transport controls.
+         =================================================================== -->
+    <section id="casting-view" class="casting" aria-label="Now casting">
+      <img id="casting-backdrop" class="casting__backdrop" alt="" aria-hidden="true" />
+      <div class="casting__scrim" aria-hidden="true"></div>
+
+      <div class="casting__content">
+        <div class="casting__status">
+          <span class="casting__dot" aria-hidden="true"></span>
+          <span class="casting__to">Casting to <span id="casting-device">…</span></span>
+          <p id="status-line" class="casting__detail" aria-live="polite">Not casting</p>
+        </div>
+
+        <h1 id="casting-title" class="casting__title"></h1>
+        <p id="casting-subtitle" class="casting__subtitle"></p>
+
+        <!-- Transport row — same ids as the old player footer, new home. -->
+        <div class="transport">
+          <button
+            id="play-pause"
+            class="pbtn pbtn--primary"
+            type="button"
+            aria-label="Play"
+            disabled
+          >
+            <svg class="icon icon--lg" aria-hidden="true">
+              <use id="play-pause-icon" href="#icon-play" />
+            </svg>
+          </button>
+
+          <button id="stop" class="pbtn" type="button" aria-label="Stop" disabled>
+            <svg class="icon" aria-hidden="true"><use href="#icon-stop" /></svg>
+          </button>
+
+          <div class="scrubber">
+            <span id="time-pos" class="scrubber__time">0:00</span>
+            <div class="scrubber__track">
+              <input
+                type="range"
+                id="seek-bar"
+                min="0"
+                max="1000"
+                value="0"
+                step="1"
+                aria-label="Seek"
+                disabled
+              />
+              <div id="seek-tooltip" class="scrubber__tip" aria-hidden="true">0:00</div>
+            </div>
+            <span id="time-dur" class="scrubber__time">0:00</span>
+          </div>
+
+          <div class="transport__tools">
+            <div class="volume">
+              <button id="mute" class="pbtn" type="button" aria-label="Mute">
+                <svg class="icon" aria-hidden="true">
+                  <use id="volume-icon" href="#icon-volume-high" />
+                </svg>
+              </button>
+              <input
+                type="range"
+                id="volume-bar"
+                min="0"
+                max="100"
+                value="100"
+                step="1"
+                aria-label="Volume"
+              />
+              <span id="volume-label" class="sr-only">100%</span>
+            </div>
+
+            <button
+              id="cc"
+              class="pbtn"
+              type="button"
+              aria-label="Subtitles"
+              aria-pressed="false"
+            >
+              <svg class="icon" aria-hidden="true"><use href="#icon-cc" /></svg>
+            </button>
+
+            <div class="popover-anchor">
+              <button
+                id="settings"
+                class="pbtn"
+                type="button"
+                aria-label="Playback settings"
+                aria-expanded="false"
+                aria-controls="settings-popover"
+              >
+                <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+              </button>
+
+              <div
+                id="settings-popover"
+                class="popover"
+                role="dialog"
+                aria-label="Playback settings"
+              >
+                <p class="popover__title">Tracks</p>
+                <div class="popover__field">
+                  <label class="popover__label" for="audio-track-mini">Audio</label>
+                  <select id="audio-track-mini"></select>
+                </div>
+                <div class="popover__field">
+                  <label class="popover__label" for="sub-track-mini">Subtitles</label>
+                  <select id="sub-track-mini"></select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Templates (inert until cloned). -->
+    <template id="device-row-template">
+      <li class="device-row" role="option" tabindex="-1" aria-selected="false">
+        <span class="device-row__dot" aria-hidden="true"></span>
+        <span class="device-row__body">
+          <span class="device-row__name"></span>
+          <span class="device-row__type"></span>
+        </span>
+      </li>
+    </template>
+
+    <template id="recents-card-template">
+      <div class="recent-card" data-path="">
+        <button class="recent-card__open" type="button">
+          <span class="recent-card__thumb-wrap">
+            <img class="recent-card__thumb" alt="" aria-hidden="true" />
+          </span>
+          <span class="recent-card__name"></span>
+          <span class="recent-card__meta"></span>
+        </button>
+        <button
+          class="recent-card__dismiss"
+          type="button"
+          aria-label="Remove from recents"
+        >
+          <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-close" /></svg>
+        </button>
+      </div>
+    </template>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  entitlements.mac.plist — hardened-runtime exceptions for the Developer ID build.
+
+  Used as BOTH `mac.entitlements` (the outer .app) and `mac.entitlementsInherit`
+  (every nested helper). Hardened Runtime is mandatory for notarization, and it
+  switches off several things a Chromium app needs.
+
+  THE RULE FOR THIS FILE: every key here is a security exception, so it must name
+  a concrete thing in THIS app that needs it. "@electron/osx-sign puts it in the
+  default set" is not a justification — that set is written for the union of all
+  Electron apps, and we are one specific app whose entire production dependency
+  tree (castv2, bonjour-service, zod, protobufjs and their transitives) is pure
+  JavaScript with no native modules. Two entitlements from that default set are
+  deliberately absent; the evidence is at the bottom of this file. Please read it
+  before re-adding them from a template.
+
+  DELIBERATELY ABSENT: com.apple.security.app-sandbox. Sandboxing would break the
+  two things this app is built around — the local HTTP media server it streams
+  from, and Bonjour/mDNS Chromecast discovery. It is required for the Mac App
+  Store, and NOT required for Developer ID distribution, which is what we ship.
+-->
+<plist version="1.0">
+<dict>
+	<!-- V8 compiles JavaScript to native code at runtime and needs MAP_JIT pages
+	     to do it. Without this, Hardened Runtime denies the mapping and Electron
+	     does not start at all. Concrete need: this is a Chromium app. -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+
+	<!-- Parts of Chromium create executable memory outside the MAP_JIT mechanism
+	     that allow-jit covers, which Hardened Runtime's W^X policy forbids on its
+	     own. This is the one key here taken on Electron's documented say-so
+	     rather than derived from first principles, but the need is still concrete
+	     and specific to this app: it is what Chromium requires in order to run
+	     under Hardened Runtime. Symptom if wrongly removed: crash at launch. -->
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+</dict>
+</plist>
+<!--
+  ==========================================================================
+  REMOVED 2026-07-23 — recorded with evidence so nobody re-adds them blindly
+  ==========================================================================
+
+  com.apple.security.cs.allow-dyld-environment-variables — REMOVED.
+    The first draft of this file justified it as "the main process sets
+    CASTGORILLA_FFMPEG/CASTGORILLA_FFPROBE before spawning ffmpeg, and Hardened
+    Runtime strips those unless this is set". THAT WAS FACTUALLY WRONG, and is
+    why this section exists. The entitlement governs `DYLD_*` variables ONLY
+    (DYLD_INSERT_LIBRARIES, DYLD_LIBRARY_PATH, …) — the dynamic-loader ones dyld
+    ignores under Hardened Runtime precisely because they are a code-injection
+    vector. Ordinary environment variables are untouched by Hardened Runtime and
+    propagate to child processes normally, so `ffmpeg-paths.ts` behaves
+    identically with or without this key.
+    Checked: `grep -rn "DYLD_"` over packages/*/src and scripts/ returns nothing.
+    Re-add only if something genuinely needs to inject a dylib via the
+    environment. Nothing does today.
+
+  com.apple.security.cs.disable-library-validation — REMOVED.
+    Also carried a wrong justification ("required for the asar-unpacked castv2").
+    asarUnpack has nothing to do with library validation: castv2 is unpacked so
+    that its `cast_channel.proto` has a real on-disk path for protobufjs to read
+    (see the asarUnpack comment in electron-builder.yml), and castv2 ships ZERO
+    Mach-O files — it is JavaScript plus a .proto and a .desc. Library validation
+    governs code LOADED INTO the process, and this app loads none it did not
+    sign: the production tree is pure JS (verified — no .node/.dylib/.so
+    anywhere in it), and the Electron Framework and helpers are signed with our
+    own Developer ID, so validation passes.
+    The bundled ffmpeg/ffprobe are not a counter-example: they are spawned as
+    CHILD PROCESSES, never dlopen'd, so library validation does not apply to
+    them — and `mac.binaries` signs them with our identity regardless.
+    RE-ADD THE MOMENT a native module (*.node) or a third-party dylib enters the
+    production dependency tree. Symptom: a "code signature not valid for use in
+    process" / library-load failure at require() time.
+-->

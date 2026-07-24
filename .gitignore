@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Generated test media (large; regenerate via scripts/gen-fixtures.sh).
+# The README note is kept; everything else under fixtures/ is ignored.
+fixtures/*
+!fixtures/README.md
+
+# Maintainer's private companion to CLAUDE.md: device inventory with LAN
+# addresses and friendly names, real media filenames and paths, and
+# machine-specific repro steps. Kept out of the public repo.
+NOTES.local.md
+
+# macOS
+.DS_Store
+
+# Electron packaging output
+packages/app/release/
+.gstack/
+
+# Never commit built binaries (Gumroad-only distribution policy)
+*.dmg
+*.app/
+
+# Bundled static ffmpeg/ffprobe (~tens of MB each). Build artifacts, not
+# source: regenerate via scripts/build-ffmpeg.sh.
+vendor/

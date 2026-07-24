@@ -1,0 +1,19 @@
+{
+  "name": "@castgorilla/cli",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "castgorilla command-line interface (WS0: stub bin only).",
+  "bin": {
+    "castgorilla": "./bin/castgorilla.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@castgorilla/engine": "*"
+  }
+}

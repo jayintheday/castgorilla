@@ -1,0 +1,29 @@
+{
+  "name": "@castgorilla/app",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "castgorilla desktop app (Electron). Bare functional shell built against the engine's MockEngine; WS6b swaps in the real engine via src/main/engine-host.ts.",
+  "author": "castgorilla",
+  "main": "dist/main/index.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build:main": "vite build -c electron.main.config.ts",
+    "build:preload": "vite build -c electron.preload.config.ts",
+    "build:renderer": "vite build",
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "dist": "npm run build && electron-builder --dir",
+    "dist:dmg": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@castgorilla/engine": "*"
+  },
+  "devDependencies": {
+    "electron": "43.2.0",
+    "electron-builder": "26.15.3",
+    "vite": "7.3.6"
+  }
+}

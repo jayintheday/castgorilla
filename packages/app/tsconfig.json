@@ -1,0 +1,21 @@
+{
+  "//": "Standalone app typecheck. Intentionally NOT part of the root `tsc -b` project-references graph (root references only engine + cli). Adding a reference from the root tsconfig would require editing a root config, which is out of scope for this workstream. The app is type-checked via `npm run typecheck` and built by Vite; it consumes the engine's FROZEN types from its built `dist` by relative path.",
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts"]
+}

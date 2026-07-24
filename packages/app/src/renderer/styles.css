@@ -1,0 +1,27 @@
+/**
+ * styles.css — the stylesheet entry point.
+ *
+ * `index.html` links THIS file and only this file, so it stays the entry point
+ * even though the actual rules now live in three layers. Vite inlines these
+ * imports at build time (they become one stylesheet in `dist/renderer`), so
+ * the split costs nothing at runtime and there is no extra request.
+ *
+ * Order is significant and is a cascade decision, not a filing decision:
+ *   0. fonts      — @font-face rules; MUST come first so the families are
+ *                   registered before tokens.css names them and before any rule
+ *                   uses them (a webfont referenced before its @font-face is a
+ *                   silent fallback to system).
+ *   1. tokens     — custom properties only; defines the vocabulary.
+ *   2. base       — element defaults, the page shell, focus, banners, toasts.
+ *   3. components — the named parts of the window, and the responsive rules.
+ *
+ * Later layers deliberately override earlier ones (a component's disabled or
+ * hover treatment is meant to beat the element default), so reordering these
+ * lines changes the rendering. `@import` must also stay at the very top of the
+ * file — any rule before it silently invalidates the imports.
+ */
+
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/components.css';

@@ -1,0 +1,216 @@
+/**
+ * tokens.css — the whole design system as custom properties.
+ *
+ * Every value the other sheets use comes from here. A raw colour, length,
+ * duration or shadow literal in base.css / components.css is a bug — it means a
+ * decision was made somewhere nobody will think to look again.
+ *
+ * THIS IS THE WARM REDESIGN ("warm-native"). The palette moved from the old
+ * cool charcoal to a cosy warm charcoal with a single CORAL accent, per the
+ * Cast Gorilla design direction. Every token NAME the previous sheets used is
+ * still defined here (so base.css / components.css keep resolving) — only the
+ * VALUES changed — and a handful of new tokens were added for the redesign
+ * (fonts, sidebar, display sizes, warm surfaces). See the groups below.
+ *
+ * Voice of the type system:
+ *   --font-display  Fredoka     — friendly big moments (headlines, wordmark).
+ *   --font-ui       Geist       — all UI text (the <body> default).
+ *   --font-num      Space Mono  — the technical truth (metadata, timestamps,
+ *                                 the plan chip, counts, the CASTING TO line).
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- surfaces -----------------------------------------------------------
+     Warm charcoal, darkest to lightest. `--surface-0` is the window body;
+     things ON it use 1/2; `--surface-3` floats (popover, toast). Chrome (the
+     titlebar) is `--surface-chrome`. The sidebar, the plan chip, thumbnails and
+     the casting-state variants have their own named tokens because they are
+     specific surfaces the design calls out, not steps on the neutral ramp. */
+  --surface-0: #1a1714; /* window body */
+  --surface-1: #201d18; /* raised cards (recents) */
+  --surface-2: #262219; /* controls, selects, metadata chips */
+  --surface-3: #2c2820; /* floating: popover, toast, mascot tile */
+  --surface-chrome: #23201b; /* titlebar strip */
+
+  /* Design-specific surfaces (new). */
+  --surface-sidebar: #211e19;
+  --surface-mascot: #221f19; /* empty-state mascot tile background */
+  --surface-thumb: #2a2620; /* thumbnail placeholder wells */
+  --surface-plan: #241a17; /* the coral-tinted plan chip */
+  --surface-0-casting: #141210; /* window body while casting */
+  --surface-chrome-casting: #1c1a15; /* titlebar while casting */
+
+  /* Hover/active washes for things with no surface of their own. Warm cream so
+     the highlight reads as light landing on charcoal, not a cool grey film. */
+  --wash-hover: rgb(255 255 255 / 0.06);
+  --wash-active: rgb(255 255 255 / 0.11);
+
+  /* ---- lines --------------------------------------------------------------
+     Cream hairlines (rgba 240 235 225) at three strengths. `--line` is the
+     default; `--line-strong` survives against `--surface-2`; `--line-faint`
+     separates items inside an already-bordered container. */
+  --line-faint: rgb(240 235 225 / 0.06);
+  --line: rgb(240 235 225 / 0.075);
+  --line-strong: rgb(240 235 225 / 0.11);
+
+  /* ---- text ---------------------------------------------------------------
+     A cream ramp. `--text` is primary; `--text-2` a hair softer (device names,
+     file card body); `--text-dim` for legible-but-recessive labels; `--text-
+     muted` for hints/secondary; `--text-faint` for the uppercase micro-labels
+     ("PLAY TO", "ADVANCED") and the most recessive metadata. */
+  --text: #f3efe7;
+  --text-2: #e8e2d6; /* new */
+  --text-dim: #c9c2b4;
+  --text-muted: #9c958a;
+  --text-faint: #6e675c; /* new */
+  --text-on-accent: #12101a;
+
+  /* ---- accent -------------------------------------------------------------
+     ONE accent — coral. Used sparingly: the primary action, the played portion
+     of the scrubber, the selected device, the live/pulsing dot, the focus ring.
+     If two things are this colour at once, the hierarchy is broken.
+       --accent-soft  the .12 tint (selected device row, hover fills)
+       --accent-line  the .22 hairline (the plan chip border)
+       --accent-text  the light coral used for text ON dark (plan chip label,
+                      the CASTING TO line) — coral text at full chroma is hard
+                      to read, so this is the lifted tint. */
+  --accent: #ff7a6b;
+  --accent-hover: #ff9082;
+  --accent-active: #ec6a5b;
+  --accent-soft: rgb(255 122 107 / 0.12);
+  --accent-line: rgb(255 122 107 / 0.22);
+  --accent-text: #ffa99e; /* new */
+
+  /* Focus ring — a lifted coral so it stays visible ON an accent-filled button
+     as well as on a dark surface. */
+  --focus: #ffb3a8;
+
+  /* ---- status -------------------------------------------------------------
+     `--ok` is the device-online / direct-play green from the design;
+     `--ok-strong` is the brighter "HDR PRESERVED" green. `--warn` / `--error`
+     keep their hues; the `-soft` pairs are the tinted banner/toast fills mixed
+     onto the warm surface. */
+  --ok: #5fbf6a;
+  --ok-strong: #7bd39a; /* new — HDR preserved */
+  --warn: #eab04c;
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, var(--surface-2));
+  --error: #ef5b52;
+  --error-soft: color-mix(in srgb, var(--error) 14%, var(--surface-2));
+
+  /* ---- playback tiers -----------------------------------------------------
+     THE SAME FOUR-HUE VOCABULARY the CLI prints (green / blue / amber / pink),
+     retuned to sit on warm charcoal. A maintainer who learned "pink means a
+     full re-encode" in the terminal reads the app chip without being taught
+     twice. Do not re-map these to a prettier ramp. */
+  --tier-direct: #6cc98a; /* green */
+  --tier-remux: #6fa8f0; /* blue */
+  --tier-audio: #e8b45a; /* amber */
+  --tier-video: #f08cae; /* pink */
+
+  /* ---- type ---------------------------------------------------------------
+     Self-hosted webfonts (see fonts.css), each with a graceful system fallback
+     so a missing woff2 degrades rather than breaks. --font-display is NEW. */
+  --font-display: 'Fredoka', system-ui, -apple-system, sans-serif; /* new */
+  --font-ui:
+    'Geist', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-num:
+    'Space Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 21px;
+  --fs-2xl: 26px;
+  --fs-3xl: 34px; /* new — casting title */
+  --fs-display: 44px; /* new — empty-state headline */
+
+  --lh-tight: 1.2;
+  --lh-base: 1.5;
+
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700; /* new — Fredoka can go to 700 */
+
+  /* Uppercase micro-labels ("PLAY TO", "ADVANCED", the MOCK badge) need real
+     tracking to read; body text does not. */
+  --tracking-caps: 0.13em;
+  --tracking-display: -0.01em; /* new — Fredoka on big headings */
+
+  /* ---- space --------------------------------------------------------------
+     4px base. Named by step, not by use, so one token can serve padding and gap
+     without lying about one of them. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  /* ---- radii --------------------------------------------------------------
+     window 12 · cards 11 · controls 9 · chips 6 · mascot tile 26. `--radius-
+     control` is shared by every button/select/input so control roundness tunes
+     without touching cards. */
+  --radius-sm: 6px; /* chips */
+  --radius-control: 9px; /* selects, small controls */
+  --radius-md: 11px; /* cards, primary buttons */
+  --radius-lg: 12px; /* the window */
+  --radius-mascot: 26px; /* new — the empty-state mascot tile */
+  --radius-pill: 999px;
+
+  /* ---- elevation ----------------------------------------------------------
+     Shadows carry a hairline highlight (`--ring-inset`) because a pure-black
+     shadow on a near-black surface is invisible. `--shadow-accent` is the coral
+     glow under the big play button in the casting view. */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
+  --shadow-2: 0 6px 20px rgb(0 0 0 / 0.5);
+  --shadow-3: 0 16px 40px rgb(0 0 0 / 0.6);
+  --shadow-accent: 0 10px 30px -8px rgb(255 122 107 / 0.55); /* new */
+  --ring-inset: inset 0 1px 0 rgb(255 255 255 / 0.05);
+
+  /* ---- motion -------------------------------------------------------------
+     Two feedback durations, one for the big file-zone collapse. `--dur-pulse`
+     is the live-dot / activity pulse period (opacity 1 → .35). EVERY transition
+     built on these is switched off wholesale by the `prefers-reduced-motion`
+     block in base.css — do not add a transition that bypasses these tokens. */
+  --dur-fast: 110ms;
+  --dur-med: 180ms;
+  --dur-slow: 260ms;
+  --dur-pulse: 1.6s; /* new — live-dot / activity pulse */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- layout metrics -----------------------------------------------------
+     `--titlebar-h` + `--traffic-light-inset` are dictated by macOS: with
+     `titleBarStyle: 'hiddenInset'` the traffic lights are drawn over our content
+     from roughly x=20..78, so anything painted in the titlebar must clear
+     `--traffic-light-inset`.
+
+     `--sidebar-w` is the fixed left column. `--player-bar-h` / `--player-inset`
+     are retained (base.css references them) but are now legacy: the casting view
+     is FULL-BLEED and no longer a fixed footer, so nothing needs to reserve room
+     at the foot of the shell. `--content-max` caps the main column's text. */
+  --titlebar-h: 44px;
+  --traffic-light-inset: 78px;
+  --sidebar-w: 250px; /* new */
+  --player-bar-h: 92px; /* legacy — retained for base.css */
+  --player-inset: 0px; /* legacy — retained for base.css */
+  --content-max: 720px;
+
+  /* ---- scrubber -----------------------------------------------------------
+     Track heights and thumb size are tokens because the thumb's vertical
+     centring is computed from them by hand in components.css (Chromium positions
+     `::-webkit-slider-thumb` from the track's top edge, so the margin-top is
+     `-(thumb - track) / 2` and must be restated for the thicker hover track).
+     Changing a height without its paired margin drifts the thumb off the rail. */
+  --track-h: 4px;
+  --track-h-hover: 6px;
+  --thumb-size: 14px;
+}
