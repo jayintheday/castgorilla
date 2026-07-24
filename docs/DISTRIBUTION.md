@@ -47,9 +47,10 @@ Do **not** wire `electron-updater` to a public GitHub Releases feed.
 
 ## Ship checklist (maintainer)
 
-1. **Phase 0 hardware gate** — **DONE 2026-07-24** for play + bundled ffmpeg on SHIELD; scrub burst still fails (frozen frame + spinner, nudge recovers). Details: `docs/phase0-1.0.0-hardware.md`. Re-run Tests A/B from `docs/release-1.0.0-handoff.md` only if the DMG is rebuilt.
-2. Merge / tag source when you choose (`vX.Y.Z` = source only, no binary assets).
-3. Build, sign, notarize, staple the DMG (`CLAUDE.md` Commands → Release build) — skip if uploading the already-tested 1.0.0 artifact.
+1. **Phase 0 hardware gate** — **DONE 2026-07-24 on 1.0.0** for play + bundled ffmpeg on SHIELD; scrub burst still fails (frozen frame + spinner, nudge recovers). Details: `docs/phase0-1.0.0-hardware.md`. Re-run Tests A/B from `docs/release-1.0.0-handoff.md` whenever the DMG is rebuilt — **a rebuild inherits none of the previous build's hardware evidence.**
+   > **OUTSTANDING for 1.0.1 (built 2026-07-24):** not hardware-tested. One cast to SHIELD with a human watching the TV is the gate. The change was CSS-only (no engine or pipeline change) and the binary is otherwise the same pipeline, but per the hardware protocol that is a reason to expect a pass, not evidence of one.
+2. Merge / tag source when you choose (`vX.Y.Z` = source only, no binary assets). *1.0.1 source is on `origin/main` at `52310b2`; not yet tagged.*
+3. Build, sign, notarize, staple the DMG (`CLAUDE.md` Commands → Release build) — skip only if uploading an artifact that has already passed step 1. *1.0.1 is built and notarized: `packages/app/release/Cast Gorilla-1.0.1-arm64.dmg`.*
 4. Upload the DMG to Gumroad (new product version). Honest release note: scrub under heavy seeking can stall; a small seek often recovers.
 5. When the Gumroad URL is final, replace `YOUR_GUMROAD_PRODUCT_URL` in
    `README.md` and this file.
