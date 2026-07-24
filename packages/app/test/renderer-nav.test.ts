@@ -163,6 +163,17 @@ describe('deriveNavPage — full lifecycle threaded like the view does', () => {
         page = deriveNavPage(target, prev, prev);
         return page;
       },
+      /**
+       * Intentional file load (`NavView.goTo('clip')` from `loadPath`): set the
+       * remembered page, then re-derive against the post-load reachability.
+       * Distinct from `click` only in that the next reach snapshot may already
+       * have changed (setFile ran first); for these tests they are equivalent.
+       */
+      goTo(target: Page, next: NavReach = prev): Page {
+        page = deriveNavPage(target, prev, next);
+        prev = next;
+        return page;
+      },
     };
   }
 
@@ -205,5 +216,20 @@ describe('deriveNavPage — full lifecycle threaded like the view does', () => {
     expect(nav.tick(reach(true, true))).toBe('clip'); // holds while casting
     expect(nav.tick(reach(true, false))).toBe('clip'); // session ended, clip stays
     expect(nav.tick(reach(false, false))).toBe('home'); // clip cleared → clamp home
+  });
+
+  it('stop → Home → drop another file advances to Clip via goTo (post-stop DnD bug)', () => {
+    // Without goTo, deriveNavPage alone keeps Home: clip was already reachable,
+    // so there is no rising edge, and Home always paints the empty drop face —
+    // which is exactly the "drag and drop does nothing" report after a stop.
+    const nav = driver();
+    expect(nav.tick(reach(false, false))).toBe('home');
+    expect(nav.tick(reach(true, false))).toBe('clip'); // first drop
+    expect(nav.tick(reach(true, true))).toBe('playing'); // cast
+    expect(nav.tick(reach(true, false))).toBe('clip'); // stop → clamp to clip
+    expect(nav.click('home')).toBe('home'); // user steps Home; file still loaded
+    expect(nav.tick(reach(true, false))).toBe('home'); // no edge — would stick forever
+    // loadPath: setFile (clip still true) then goTo('clip') — must land on Clip.
+    expect(nav.goTo('clip', reach(true, false))).toBe('clip');
   });
 });

@@ -112,6 +112,13 @@ async function replan(): Promise<void> {
 }
 
 /**
+ * Filled after `mountNav`. An intentional file load (drop / choose / recent)
+ * must hop to Clip even when a previous clip is still loaded — otherwise Home's
+ * empty face stays up and DnD looks broken. See `NavView.goTo`.
+ */
+let goToClip: () => void = () => undefined;
+
+/**
  * Probe a path and plan for it.
  *
  * `store.setFile()` sets `probing`, which the drop zone reflects as `.is-probing`
@@ -120,6 +127,9 @@ async function replan(): Promise<void> {
  */
 async function loadPath(path: string): Promise<void> {
   store.setFile(path);
+  // Force Clip: edge auto-advance only fires the first time a file appears, so
+  // stop → Home → drop-another would otherwise leave the empty Home face up.
+  goToClip();
   feedback.clearBanner('plan');
   feedback.clearBanner('probe');
   const token = ++probeToken;
@@ -368,14 +378,18 @@ const actions: AppActions = {
 
 // --- views ------------------------------------------------------------------
 
+// The stepper drives `body[data-page]`, the view-switch source of truth.
+// `requestRender` covers state changes with no store event — a step click or
+// `goTo` from loadPath — the same pattern the device picker uses for its grace
+// timer.
+const nav = mountNav({ requestRender: () => render() });
+goToClip = () => nav.goTo('clip');
+
 const views: View[] = [
   feedback,
   mountActivity(),
   mountTray(),
-  // The stepper drives `body[data-page]`, the view-switch source of truth.
-  // `requestRender` covers the one state change with no store event — a step
-  // click — the same pattern the device picker uses for its grace timer.
-  mountNav({ requestRender: () => render() }),
+  nav,
   mountDropZone({
     actions,
     feedback,

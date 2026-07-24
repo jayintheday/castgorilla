@@ -21,9 +21,17 @@
  *
  * `page` is view state, not store state — like the tray's collapsed bit. No view
  * renders it into AppState and the engine has no opinion about it, so it lives in
- * this closure and on `body[data-page]`, nowhere else. The one state change with
- * no store event behind it (the user clicking a step) is pushed back through
- * `requestRender()`, exactly as the device picker's grace timer is.
+ * this closure and on `body[data-page]`, nowhere else. State changes with no store
+ * event behind them (a step click, or an intentional file load via `goTo`) are
+ * pushed back through `requestRender()`, exactly as the device picker's grace
+ * timer is.
+ *
+ * INTENTIONAL LOAD vs EDGE AUTO-ADVANCE. Dropping / choosing a file while Home
+ * already has a clip loaded does NOT raise a clip edge (`reach.clip` stays true),
+ * so deriveNavPage alone would leave the empty Home face up and look like DnD
+ * is broken. `goTo('clip')` is the explicit hop for that case — called from
+ * `loadPath` — and must not be folded into a level-triggered rule, or mid-cast
+ * "browse Home while casting" would stop sticking.
  */
 
 import type { AppState } from '../store.js';
@@ -119,15 +127,25 @@ export function deriveNavPage(current: Page, prev: NavReach, reach: NavReach): P
 
 export interface NavDeps {
   /**
-   * Ask for a re-render. A step click is the one state change here that no store
-   * event corresponds to (the page lives in this closure, not the store), so the
-   * click updates `page` and pokes the render loop — mirroring how the device
-   * picker drives its grace-timer render.
+   * Ask for a re-render. A step click / `goTo` is a state change with no store
+   * event (the page lives in this closure, not the store), so those paths update
+   * `page` and poke the render loop — mirroring how the device picker drives its
+   * grace-timer render.
    */
   requestRender(): void;
 }
 
-export function mountNav(deps: NavDeps): View {
+/** The nav view plus the explicit page hop used by intentional file loads. */
+export interface NavView extends View {
+  /**
+   * Jump to a page the same way a step click does. Used by `loadPath` so a drop
+   * / choose / recent from Home advances to Clip even when a clip was already
+   * loaded (no rising edge). Unreachable targets still clamp on the next render.
+   */
+  goTo(target: Page): void;
+}
+
+export function mountNav(deps: NavDeps): NavView {
   const { requestRender } = deps;
 
   const homeBtn = el<HTMLButtonElement>('nav-home');
@@ -150,12 +168,18 @@ export function mountNav(deps: NavDeps): View {
    */
   let prevReach: NavReach = { home: true, clip: false, playing: false };
 
+  function goTo(target: Page): void {
+    // Same path as a step click: set the remembered page, then re-render so
+    // deriveNavPage can clamp if the target is not reachable yet.
+    page = target;
+    requestRender();
+  }
+
   for (const [button, target] of steps) {
     button.addEventListener('click', () => {
       // A disabled (unreachable) button never fires this, so the set is safe;
       // deriveNavPage's clamp-down is the belt-and-braces if one ever did.
-      page = target;
-      requestRender();
+      goTo(target);
     });
   }
 
@@ -173,5 +197,5 @@ export function mountNav(deps: NavDeps): View {
     }
   }
 
-  return { render };
+  return { render, goTo };
 }
