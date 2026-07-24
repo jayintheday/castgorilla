@@ -154,8 +154,8 @@
       MAIN — file zone, setup, recents (all siblings inside <main class="main">).
         #file-zone           <section>. The hero (empty face) AND the compact
                              file card (loaded face) — ONE element, two faces,
-                             switched by `.has-file` (B). Also the drag target.
-                             Carries all file state classes (B).
+                             switched by `body[data-page]` (C). Also the drag
+                             target. Carries all file state classes (B).
         #open-file           <button>. "Choose a file…". Native picker. Id kept.
         #file-name           <h2>. The chosen file's NAME (not path) — set from
                              formatFileName(path); set `.title` to the full path.
@@ -175,7 +175,7 @@
                              i.e. everything shown once a file is loaded EXCEPT
                              the device list (which is now permanently in the
                              sidebar). NO JS responsibility: CSS reveals it via
-                             `#file-zone.has-file ~ #setup`. Id kept.
+                             `body[data-page='clip'] #setup`. Id kept.
         #launch-hint         <p>. NEW, optional. The "Ready to cast · <place>"
                              line beside the primary button. Wiring MAY set it
                              from the selected device; static text is acceptable.
@@ -222,11 +222,11 @@
         #plan-reasons        <details>. "Why this plan?". Id kept.
         #reasons-list        <ul>. One <li> per planner reason. Id kept.
 
-      RECENTS  (Empty face only — hidden when a file is loaded, and when empty)
+      RECENTS  (Home page only — hidden on the Clip page, and when empty)
         #recents             <section hidden>. "PICK UP WHERE YOU LEFT OFF"
                              label + #recents-clear + #recents-grid. NEW. Shown
-                             only in the empty state and only when it has cards;
-                             CSS hides it under `#file-zone.has-file ~ #recents`.
+                             on Home only, and only when it has cards; CSS hides
+                             it under `body[data-page='clip'] #recents`.
                              Wiring toggles `hidden` when there are no recents.
         #recents-clear       <button>. NEW. Clears the recents list.
         #recents-grid        <div>. NEW. The 3-up card grid; wiring populates it
@@ -804,7 +804,7 @@
         </div>
       </aside>
 
-      <!-- MAIN — file zone, setup, recents (siblings; .has-file toggles them). -->
+      <!-- MAIN — file zone, setup, recents (siblings; body[data-page] toggles them). -->
       <main class="main">
         <!-- 1. FILE — hero drop zone (empty face) that collapses to a card. -->
         <section id="file-zone" class="file-zone" aria-label="Video file">
@@ -847,7 +847,7 @@
           <div class="file-zone__overlay" aria-hidden="true">Drop the video here</div>
         </section>
 
-        <!-- 2. SETUP — revealed by CSS on `#file-zone.has-file ~ #setup`.
+        <!-- 2. SETUP — revealed by CSS on `body[data-page='clip'] #setup`.
              Launch → Audio & Subtitles → Advanced. The device list is NOT here
              any more (it is permanently in the sidebar). -->
         <div id="setup">
@@ -931,8 +931,8 @@
           </details>
         </div>
 
-        <!-- 5. RECENTS — Empty face only. Hidden when a file is loaded
-             (`#file-zone.has-file ~ #recents`) and when there are no cards. -->
+        <!-- 5. RECENTS — Empty face only. Hidden on the Clip page
+             (`body[data-page='clip'] #recents`) and when there are no cards. -->
         <section id="recents" class="recents" hidden>
           <div class="recents__head">
             <p class="section-label">Pick up where you left off</p>
