@@ -2,7 +2,7 @@
 
 Repo, scope and appId are `castgorilla` / `@castgorilla` / `co.castgorilla.app`; the shipped display name is **Cast Gorilla** (`productName` only — see RELEASE PACKAGING before assuming that moved anything).
 
-Airflow.app-style macOS player: browse to a local video file, pick a Chromecast on the LAN, play. Pipeline-first: probe → decide (direct / remux / audio-transcode / video-transcode) → serve over local HTTP (Range direct or Jellyfin-style on-demand HLS VOD) → cast via CASTV2 to the Default Media Receiver. AirPlay is backlog.
+macOS media player that casts local video to your TV: browse to a local video file, pick a Chromecast on the LAN, play. Pipeline-first: probe → decide (direct / remux / audio-transcode / video-transcode) → serve over local HTTP (Range direct or Jellyfin-style on-demand HLS VOD) → cast via CASTV2 to the Default Media Receiver. AirPlay is backlog.
 
 > Maintainer-private companion: `NOTES.local.md` (gitignored) holds the device inventory with LAN addresses, the real media files behind the validation tables, and machine-specific reproduction commands. Everything technical is here.
 

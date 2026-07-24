@@ -26,7 +26,7 @@ symptom/protocol/killed hypotheses.
 
 ## 1. What castgorilla is (minimum you need)
 
-An Airflow.app-style macOS app that casts a local video file to a Chromecast /
+A macOS app that casts a local video file to a Chromecast /
 Android TV on the LAN. Pipeline: probe (ffprobe) → decide (pure planner) → serve
 over a local HTTP server → cast via CASTV2 to the Google **Default Media
 Receiver**.
