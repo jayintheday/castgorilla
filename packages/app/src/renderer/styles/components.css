@@ -397,11 +397,16 @@
    centres its content and grows to fill the space above recents. The Clip page
    collapses it (components below hide the empty face and show the card); the
    Home page keeps this full-size empty face even when a clip is loaded, which is
-   what makes the stepper pure navigation.                                     */
+   what makes the stepper pure navigation.
+
+   It grows but must never SHRINK: squeezed under its own content the centred
+   empty face overflows onto .recents, which has no background to hide it, and
+   the formats line lands on "PICK UP WHERE YOU LEFT OFF". Short windows now
+   spill that deficit onto .main's existing overflow-y instead — Home scrolls,
+   second row of recents below the fold, the cheaper of the two evils.        */
 .file-zone {
   position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
